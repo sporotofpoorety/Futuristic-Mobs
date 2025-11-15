@@ -9,6 +9,7 @@ import com.google.common.collect.Multimap;
 
 import net.daveyx0.primitivemobs.core.PrimitiveMobs;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsItems;
+import net.daveyx0.primitivemobs.core.PrimitiveMobsReference;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.SharedMonsterAttributes;
@@ -33,8 +34,8 @@ public class ItemGoblinMace extends ItemSword {
 	}
 
 	public static void setItemName(Item item, String itemName) {
-		item.setRegistryName(itemName);
-		item.setUnlocalizedName(item.getRegistryName().toString());
+		item.setRegistryName(PrimitiveMobsReference.MODID, itemName);
+		item.setUnlocalizedName(PrimitiveMobsReference.MODID + ":" + itemName);
 	}
 	
 	

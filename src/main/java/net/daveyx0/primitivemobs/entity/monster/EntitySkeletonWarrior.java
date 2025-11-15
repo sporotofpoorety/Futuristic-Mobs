@@ -2,6 +2,7 @@ package net.daveyx0.primitivemobs.entity.monster;
 
 import javax.annotation.Nullable;
 
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.entity.ai.EntityAISwitchBetweenRangedAndMelee;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.entity.EntityLivingBase;
@@ -28,16 +29,44 @@ import net.minecraft.entity.projectile.EntitySpectralArrow;
 import net.minecraft.entity.projectile.EntityTippedArrow;
 import net.minecraft.init.Items;
 import net.minecraft.init.MobEffects;
+import net.minecraft.init.SoundEvents;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemStack;
+import net.minecraft.potion.Potion;
 import net.minecraft.potion.PotionEffect;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.World;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
 public class EntitySkeletonWarrior extends EntitySkeleton {
+
+    protected String skeletonWarriorEffectName;
+    protected Potion skeletonWarriorEffect;
+    protected int skeletonWarriorEffectDuration;
+    protected int skeletonWarriorEffectAmplifier;
+    protected double skeletonWarriorStrafeThreshold;
+    protected double skeletonWarriorSwitchToMelee;
+    protected double skeletonWarriorSwitchToRanged;
+    protected int skeletonWarriorShootDelayTime;
+    protected int skeletonWarriorShootDrawTime;
+    protected double skeletonWarriorShootVelocity;
+    protected double skeletonWarriorShootInaccuracyFactor;
     
 	public EntitySkeletonWarrior(World worldIn) {
 		super(worldIn);
+        skeletonWarriorEffectName = PrimitiveMobsConfigSpecial.getSkeletonWarriorEffect();
+        skeletonWarriorEffect = ForgeRegistries.POTIONS.getValue(new ResourceLocation(skeletonWarriorEffectName));
+        skeletonWarriorEffectDuration = PrimitiveMobsConfigSpecial.getSkeletonWarriorEffectDuration();
+        skeletonWarriorEffectAmplifier = PrimitiveMobsConfigSpecial.getSkeletonWarriorEffectAmplifier();
+        skeletonWarriorStrafeThreshold = PrimitiveMobsConfigSpecial.getSkeletonWarriorStrafeThreshold(); 
+        skeletonWarriorSwitchToMelee = PrimitiveMobsConfigSpecial.getSkeletonWarriorSwitchToMelee();
+        skeletonWarriorSwitchToRanged = PrimitiveMobsConfigSpecial.getSkeletonWarriorSwitchToRanged();
+        skeletonWarriorShootDelayTime = PrimitiveMobsConfigSpecial.getSkeletonWarriorShootDelayTime();
+        skeletonWarriorShootDrawTime = PrimitiveMobsConfigSpecial.getSkeletonWarriorShootDrawTime();
+        skeletonWarriorShootVelocity = PrimitiveMobsConfigSpecial.getSkeletonWarriorShootVelocity();
+        skeletonWarriorShootInaccuracyFactor = PrimitiveMobsConfigSpecial.getSkeletonWarriorShootInaccuracyFactor();
 	}
 	
     protected void initEntityAI()
@@ -46,8 +75,6 @@ public class EntitySkeletonWarrior extends EntitySkeleton {
         this.tasks.addTask(2, new EntityAIRestrictSun(this));
         this.tasks.addTask(3, new EntityAIFleeSun(this, 1.0D));
         this.tasks.addTask(3, new EntityAIAvoidEntity(this, EntityWolf.class, 6.0F, 1.0D, 1.2D));
-        this.tasks.addTask(4, new EntityAISwitchBetweenRangedAndMelee(this, 1.35D, 20, 15.0F));
-        this.tasks.addTask(5, new EntitySkeletonWarrior.EntityAISwitchWeapons(this, 5D, 6D, new ItemStack(Items.IRON_SWORD), new ItemStack(Items.BOW)));
         //this.tasks.addTask(6, new EntityAIBackOffFromEnemy(this, 5D, false));
         this.tasks.addTask(6, new EntityAIWander(this, 1.0D));
         this.tasks.addTask(7, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));
@@ -89,6 +116,9 @@ public class EntitySkeletonWarrior extends EntitySkeleton {
         {
             this.setItemStackToSlot(EntityEquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         }
+
+        this.tasks.addTask(4, new EntityAISwitchBetweenRangedAndMelee(this, 1.35D, this.skeletonWarriorShootDelayTime, (float) this.skeletonWarriorStrafeThreshold, this.skeletonWarriorShootDrawTime));
+        this.tasks.addTask(5, new EntitySkeletonWarrior.EntityAISwitchWeapons(this, this.skeletonWarriorSwitchToMelee, this.skeletonWarriorSwitchToRanged, new ItemStack(Items.IRON_SWORD), new ItemStack(Items.BOW)));
         
         return livingdata;
     }
@@ -109,9 +139,12 @@ public class EntitySkeletonWarrior extends EntitySkeleton {
     {
         EntityArrow entityarrow = super.getArrow(p_190726_1_);
 
-        if (entityarrow instanceof EntityTippedArrow)
+        if (!this.skeletonWarriorEffectName.isEmpty())
         {
-            ((EntityTippedArrow)entityarrow).addEffect(new PotionEffect(MobEffects.WEAKNESS, 600));
+            if(entityarrow instanceof EntityTippedArrow)
+            {
+                ( (EntityTippedArrow) entityarrow ).addEffect(new PotionEffect(skeletonWarriorEffect, skeletonWarriorEffectDuration, skeletonWarriorEffectAmplifier));
+            }
         }
 
         return entityarrow;
@@ -200,5 +233,22 @@ public class EntitySkeletonWarrior extends EntitySkeleton {
     public void setCombatTask()
     {
         
+    }
+
+    
+    @Override
+    public void attackEntityWithRangedAttack(EntityLivingBase target, float distanceFactor)
+    {
+        EntityArrow entityarrow = this.getArrow(distanceFactor);
+        double d0 = target.posX - this.posX;
+        double d1 = target.getEntityBoundingBox().minY + (double)(target.height / 3.0F) - entityarrow.posY;
+        double d2 = target.posZ - this.posZ;
+        double d3 = (double) MathHelper.sqrt(d0 * d0 + d2 * d2);
+//Trying to adjust arrow shoot height to speed
+        entityarrow.shoot(d0, d1 + d3 * 0.20000000298023224D * (skeletonWarriorShootInaccuracyFactor / 1.6F), d2, 
+                            (float) this.skeletonWarriorShootVelocity, 
+        (float) this.skeletonWarriorShootInaccuracyFactor * (float) (14 - this.world.getDifficulty().getDifficultyId() * 4));
+        this.playSound(SoundEvents.ENTITY_SKELETON_SHOOT, 1.0F, 1.0F / (this.getRNG().nextFloat() * 0.4F + 0.8F));
+        this.world.spawnEntity(entityarrow);
     }
 }

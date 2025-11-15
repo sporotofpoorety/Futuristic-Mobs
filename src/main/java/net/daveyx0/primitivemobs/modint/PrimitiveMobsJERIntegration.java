@@ -22,7 +22,6 @@ import net.daveyx0.primitivemobs.entity.monster.EntityTreasureSlime;
 import net.daveyx0.primitivemobs.entity.monster.EntityTrollager;
 import net.daveyx0.primitivemobs.entity.monster.EntityVoidEye;
 import net.daveyx0.primitivemobs.entity.passive.EntityDodo;
-import net.daveyx0.primitivemobs.entity.passive.EntityFilchLizard;
 import net.daveyx0.primitivemobs.entity.passive.EntityGroveSprite;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
@@ -70,7 +69,6 @@ public class PrimitiveMobsJERIntegration extends JustEnoughResourcesIntegration 
 				
 				//Custom mob loot
 				jerAPI.getMobRegistry().register(new EntityHauntedTool(world), LightLevel.hostile, PrimitiveMobsLootTables.HAUNTEDTOOL_SPAWN);
-				jerAPI.getMobRegistry().register(new EntityFilchLizard(world), PrimitiveMobsLootTables.FILCHLIZARD_SPAWN);
 				jerAPI.getMobRegistry().register(new EntityTreasureSlime(world), PrimitiveMobsLootTables.TREASURESLIME_SPAWN);
 
 	}

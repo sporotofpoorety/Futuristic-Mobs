@@ -35,17 +35,16 @@ public class WonderSapRecipe extends ShapelessOreRecipe {
 			
 			for (int i = 0; i < inv.getSizeInventory(); i++) {
 				ItemStack ingredient = inv.getStackInSlot(i);
-				if(!ingredient.isEmpty())
-				{
+				if(!ingredient.isEmpty()) {
 				
-				if (ingredient.getItem() instanceof ItemGroveSpriteSap) { 
+				    if (ingredient.getItem() instanceof ItemGroveSpriteSap) { 
 					
-					ItemStack log = ItemGroveSpriteSap.getLogFromSap(ingredient, 1);
-					if(!log.isEmpty())
-					{
-						output = log;
-					}
-				}
+					    ItemStack log = ItemGroveSpriteSap.getLogFromSap(ingredient, 1);
+					    if(!log.isEmpty())
+					    {
+					    	output = log;
+					    }
+				    }
 				}
 			}
 		}

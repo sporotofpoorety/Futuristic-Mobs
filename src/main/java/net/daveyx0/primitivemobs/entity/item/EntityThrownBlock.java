@@ -5,6 +5,7 @@ import java.util.List;
 import com.google.common.collect.Lists;
 
 import net.daveyx0.multimob.util.NBTUtil;
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
@@ -35,7 +36,7 @@ public class EntityThrownBlock extends Entity
     {
         super(worldIn);
         this.preventEntitySpawning = true;
-        this.setSize(1.0f,1.0f);
+        this.setSize((float) PrimitiveMobsConfigSpecial.getTrollThrownScale(), (float) PrimitiveMobsConfigSpecial.getTrollThrownScale());
     }
 
     public EntityThrownBlock(World worldIn, double x, double y, double z, EntityLivingBase igniter, BlockPos blockPos)
@@ -70,7 +71,7 @@ public class EntityThrownBlock extends Entity
     
     public void fall(float distance, float damageMultiplier)
     {
-                List<Entity> list = Lists.newArrayList(this.world.getEntitiesWithinAABBExcludingEntity(this, this.getEntityBoundingBox().expand(1.2, 1.2, 1.2)));
+                List<Entity> list = Lists.newArrayList(this.world.getEntitiesWithinAABBExcludingEntity(this, this.getEntityBoundingBox().expand(1.25, 1.25, 1.25)));
 
                 for (Entity entity : list)
                 {
@@ -123,6 +124,21 @@ public class EntityThrownBlock extends Entity
      */
     public void onUpdate()
     {
+//Simple AoE damage, testing if it has any issues
+        List<Entity> list = Lists.newArrayList(this.world.getEntitiesWithinAABBExcludingEntity(this, this.getEntityBoundingBox()));
+
+        for (Entity entity : list)
+        {
+        	if(this.owner == null)
+        	{
+        		entity.attackEntityFrom(DamageSource.causeThrownDamage(this, this), 10F);
+        	}
+        	else
+        	{
+        		entity.attackEntityFrom(DamageSource.causeThrownDamage(this, this.owner), 10F);
+        	}   
+        }
+
         this.prevPosX = this.posX;
         this.prevPosY = this.posY;
         this.prevPosZ = this.posZ;
@@ -142,10 +158,14 @@ public class EntityThrownBlock extends Entity
             this.motionX *= 0.699999988079071D;
             this.motionZ *= 0.699999988079071D;
             this.motionY *= -0.5D;
-            
-            for(int i = 0; i < 36; i++)
+
+//Spawns particles within a randomized range
+//specified number of times, will be useful for future reference
+            float blockScale = (float) PrimitiveMobsConfigSpecial.getTrollThrownScale();
+            int particleTotal = (int) Math.floor(36 * blockScale);
+            for(int i = 0; i < particleTotal; i++)
             {
-                this.getEntityWorld().spawnParticle(EnumParticleTypes.BLOCK_CRACK, this.posX + (rand.nextFloat() - rand.nextFloat()), this.posY + 0.5D, this.posZ + (rand.nextFloat() - rand.nextFloat()), (rand.nextFloat() - rand.nextFloat()), 1.0D, (rand.nextFloat() - rand.nextFloat()), Block.getIdFromBlock(this.world.getBlockState(this.getOrigin()).getBlock()));
+                this.getEntityWorld().spawnParticle(EnumParticleTypes.BLOCK_CRACK, this.posX + ((blockScale * rand.nextFloat()) - (blockScale * rand.nextFloat())), this.posY + 0.5D, this.posZ + ((blockScale * rand.nextFloat()) - (blockScale * rand.nextFloat())), (rand.nextFloat() - rand.nextFloat()), 1.0D, (rand.nextFloat() - rand.nextFloat()), Block.getIdFromBlock(this.world.getBlockState(this.getOrigin()).getBlock()));
             }
             
             this.setDead();

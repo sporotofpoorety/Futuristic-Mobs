@@ -108,8 +108,8 @@ public class EntityAITrollagerAttacks<T extends EntityMob & IAnimatedMob> extend
             boolean canThrowBlock = checkCanThrow();  
 
             boolean canPerformMeleeAttack = isWithinMeleeRange && canSeeEnemy;
-            boolean canPerformSmashAttack = PrimitiveMobsConfigSpecial.getTrollDestruction() && ((isWithinAttackRange && (!canSeeEnemy || !canThrowBlock)) || this.entity.world.rand.nextInt(4) == 0) && !entity.isBeingRidden();
-            boolean canPerformThrowAttack = canSeeEnemy && canThrowBlock && !entity.isBeingRidden();
+            boolean canPerformSmashAttack = PrimitiveMobsConfigSpecial.getTrollDestruction() && ((isWithinAttackRange && (!canSeeEnemy || !canThrowBlock)) || this.entity.world.rand.nextInt(4) == 0) && (!entity.isBeingRidden() || PrimitiveMobsConfigSpecial.getTrollCanSmashWhileRidden());
+            boolean canPerformThrowAttack = canSeeEnemy && canThrowBlock && (!entity.isBeingRidden() || PrimitiveMobsConfigSpecial.getTrollCanThrowWhileRidden());
             
             if (--this.attackTime <= 0 && this.isAttacking)
             {

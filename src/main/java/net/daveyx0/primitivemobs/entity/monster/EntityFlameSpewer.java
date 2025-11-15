@@ -4,12 +4,15 @@ import javax.annotation.Nullable;
 
 import net.daveyx0.multimob.entity.IMultiMob;
 import net.daveyx0.multimob.entity.IMultiMobLava;
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
+import net.daveyx0.primitivemobs.entity.ai.EntityAIFlameSpewAttack;
 import net.daveyx0.primitivemobs.entity.item.EntityFlameSpit;
 import net.minecraft.block.Block;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.EnumCreatureType;
+import net.minecraft.entity.IEntityLivingData;
 import net.minecraft.entity.IRangedAttackMob;
 import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.ai.EntityAIBase;
@@ -37,6 +40,7 @@ import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.World;
 
 public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IMultiMobLava {
@@ -45,9 +49,14 @@ public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IM
     private static final DataParameter<Byte> IN_DANGER = EntityDataManager.<Byte>createKey(EntityFlameSpewer.class, DataSerializers.BYTE);
     private static final DataParameter<Integer> ATTACK_TIME = EntityDataManager.<Integer>createKey(EntityFlameSpewer.class, DataSerializers.VARINT);
     private static final DataParameter<Float> ATTACK_SIGNAL = EntityDataManager.<Float>createKey(EntityFlameSpewer.class, DataSerializers.FLOAT);
+
+    protected double smallFireballAcceleration;
     
 	public EntityFlameSpewer(World worldIn) {
 		super(worldIn);
+
+        this.smallFireballAcceleration = PrimitiveMobsConfigSpecial.getFlameSpewerSmallFireballAcceleration();
+
 		this.isImmuneToFire = true;
 		this.setOnFire(false);
 		this.setInDanger(false);
@@ -61,11 +70,19 @@ public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IM
     {
         //this.tasks.addTask(++prio, new EntityAISwimming(this));
 		this.tasks.addTask(3, new EntityFlameSpewer.AIGoToLava(this));
-		this.tasks.addTask(4, new EntityFlameSpewer.AIFlameSpewAttack(this));
         this.tasks.addTask(5, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));
         this.tasks.addTask(6, new EntityAILookIdle(this));
         this.targetTasks.addTask(1, new EntityAIHurtByTarget(this, true, new Class[0]));
         this.targetTasks.addTask(2, new EntityAINearestAttackableTarget(this, EntityPlayer.class, true));
+    }
+
+    @Override public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
+    {
+        super.onInitialSpawn(difficulty, livingdata);
+
+		this.tasks.addTask(4, new EntityAIFlameSpewAttack(this, this.smallFireballAcceleration));
+
+        return livingdata;
     }
 	
     protected void applyEntityAttributes()
@@ -246,192 +263,6 @@ public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IM
         return PrimitiveMobsLootTables.ENTITIES_FLAMESPEWER;
     }
 	
-	static class AIFlameSpewAttack extends EntityAIBase
-    {
-        private final EntityFlameSpewer spewer;
-        private int attackStep;
-        private int attackTime;
-        private float attackSignal;
-        private boolean performingAttack;
-        private boolean hasSeenPlayerThisAttack;
-
-        public AIFlameSpewAttack(EntityFlameSpewer spewerIn)
-        {
-            this.spewer = spewerIn;
-            this.setMutexBits(3);
-        }
-
-        /**
-         * Returns whether the EntityAIBase should begin execution.
-         */
-        public boolean shouldExecute()
-        {
-            EntityLivingBase entitylivingbase = this.spewer.getAttackTarget();
-            return entitylivingbase != null && entitylivingbase.isEntityAlive();
-        }
-
-        /**
-         * Execute a one shot task or start executing a continuous task
-         */
-        public void startExecuting()
-        {
-            this.attackStep = 10;
-            this.attackSignal = 0;
-            this.attackTime = 100;
-            performingAttack = false;
-            hasSeenPlayerThisAttack = false;
-        }
-        
-        /**
-         * Returns whether an in-progress EntityAIBase should continue executing
-         */
-        public boolean shouldContinueExecuting()
-        {
-            return this.shouldExecute();
-        }
-
-        /**
-         * Reset the task's internal state. Called when this task is interrupted by another one
-         */
-        public void resetTask()
-        {
-            this.spewer.setOnFire(false);
-            this.attackSignal = 0;
-            this.attackStep = 10;
-            this.attackTime = 100;
-            spewer.setAttackTime(attackStep);
-            spewer.setAttackSignal(attackSignal);
-            spewer.setOnFire(false);
-            this.spewer.setInDanger(false);
-            performingAttack = false;
-        }
-
-        /**
-         * Keep ticking a continuous task that has already been started
-         */
-        public void updateTask()
-        {
-            --this.attackTime;
-            EntityLivingBase entitylivingbase = this.spewer.getAttackTarget();
-        
-            if(!this.performingAttack && this.spewer.isInLava() && this.spewer.canEntityBeSeen(entitylivingbase))
-            {
-            	if(attackTime <= 50)
-            	{
-            		this.spewer.setOnFire(false);
-            		hasSeenPlayerThisAttack = false;
-            	}
-            	
-                if(!spewer.isOnFire())
-                {
-                    if(this.spewer.canEntityBeSeen(entitylivingbase))
-                    {
-                    	hasSeenPlayerThisAttack = true;
-                    }
-                    
-                    attackStep = (attackTime * 2) /10;
-                    if(attackTime <= 3)
-                    {
-                        attackSignal += 0.05f;
-                    }
-                }
-            }
-
-            double d0 = this.spewer.getDistanceSq(entitylivingbase);
-
-            if (d0 < 5.0D && !this.spewer.isInLava())
-            {
-            	this.spewer.setInDanger(true);
-                if (this.attackTime <= 0)
-                {
-                    this.attackTime = 20;
-                    this.spewer.attackEntityAsMob(entitylivingbase);
-                }
-            }
-            else if (d0 < (this.getFollowDistance()/2) * (this.getFollowDistance()/2)  && this.spewer.isInLava())
-            {
-            	this.spewer.setInDanger(false);
-                double d1 = entitylivingbase.posX - this.spewer.posX;
-                double d2 = entitylivingbase.getEntityBoundingBox().minY + (double)(entitylivingbase.height / 2.0F + 0.25f) - (this.spewer.posY + (double)(this.spewer.height / 2.0F));
-                double d3 = entitylivingbase.posZ - this.spewer.posZ;
-
-                if (this.attackTime <= 0)
-                {
-                    ++this.attackStep;
-                    attackSignal -= 0.05f;
-                    
-                    if (this.attackStep == 1)
-                    {
-                        this.attackTime = 30;
-                        this.spewer.setOnFire(true);
-                        performingAttack = true;
-                    }
-                    else if (this.attackStep <= 10)
-                    {
-                        this.attackTime = 3;
-                        this.spewer.setOnFire(true);
-                        performingAttack = true;
-                    }
-                    else
-                    {
-                        this.attackTime = 100;
-                        this.attackStep = 10;
-                        performingAttack = false;
-                    }
-
-                    if (this.attackStep > 1 && hasSeenPlayerThisAttack)
-                    {
-                        float f = MathHelper.sqrt(MathHelper.sqrt(d0) * 0.1F);
-                        this.spewer.world.playEvent((EntityPlayer)null, 1018, new BlockPos((int)this.spewer.posX, (int)this.spewer.posY, (int)this.spewer.posZ), 0);
-
-                        for (int i = 0; i < 1; ++i)
-                        {
-                            EntityFlameSpit entitysmallfireball = new EntityFlameSpit(this.spewer.world, this.spewer, d1 + this.spewer.getRNG().nextGaussian() * 0.02F * (double)f, d2 - this.spewer.getRNG().nextGaussian() * 0.02F * (double)f, d3 + this.spewer.getRNG().nextGaussian() * 0.02F * (double)f);
-                            entitysmallfireball.posY = this.spewer.posY + (double)(this.spewer.height / 2.0F) -0.5F;
-                            this.spewer.world.spawnEntity(entitysmallfireball);
-                        }
-                    }
-                }
-            }
-            else if(this.spewer.isInLava()  && this.spewer.canEntityBeSeen(entitylivingbase))
-            {
-                double d1 = entitylivingbase.posX - this.spewer.posX;
-                double d3 = entitylivingbase.posZ - this.spewer.posZ;
-                spewer.motionX = d1 * 0.01;
-                spewer.motionZ = d3 * 0.01;
-            	this.spewer.setInDanger(false);
-                spewer.setOnFire(false);
-            }
-            else
-            {
-            	this.spewer.getNavigator().clearPath();
-            	this.spewer.setInDanger(false);
-                spewer.setOnFire(false);
-            }
-            
-            this.spewer.getLookHelper().setLookPositionWithEntity(entitylivingbase, 10.0F, 10.0F);
-            
-            if(attackSignal < 0)
-            {
-            	attackSignal = 0; 
-            }
-            else if (attackSignal > 0.4)
-            {
-            	attackSignal = 0.4f;
-            }
-            
-            spewer.setAttackSignal(attackSignal);
-            spewer.setAttackTime(attackStep);
-
-            super.updateTask();
-        }
-
-        private double getFollowDistance()
-        {
-            IAttributeInstance iattributeinstance = this.spewer.getEntityAttribute(SharedMonsterAttributes.FOLLOW_RANGE);
-            return iattributeinstance == null ? 16.0D : iattributeinstance.getAttributeValue();
-        }
-    }
 	
     public boolean isOnFire()
     {

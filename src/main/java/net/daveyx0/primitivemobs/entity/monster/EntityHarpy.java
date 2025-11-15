@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 
 import net.daveyx0.multimob.entity.EntityMMFlyingMob;
 import net.daveyx0.multimob.entity.IMultiMob;
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
 import net.minecraft.entity.Entity;
@@ -30,10 +31,31 @@ import net.minecraft.world.World;
 
 public class EntityHarpy extends EntityMMFlyingMob implements IMultiMob {
 
+    protected double harpyAttackDamage;
+    protected double harpyFlyingSpeed;
+    protected double harpyMoveSpeed;
+
+    protected int harpyReleaseTimeNeeded;
+    protected double harpyGrabbingMinimumReleaseDamage;
+    protected int harpyGrabbingDamagedTimesNeeded;
+
+    protected int harpyReleaseTime;
+    protected int harpyGrabbingDamagedTimes;
+
 	public EntityHarpy(World worldIn) {
 		super(worldIn);
 		this.setSize(0.8f, 1f);
 		this.moveHelper = new EntityHarpyFlyHelper(this);
+        harpyAttackDamage = PrimitiveMobsConfigSpecial.getHarpyAttackDamage();
+        harpyFlyingSpeed = PrimitiveMobsConfigSpecial.getHarpyFlyingSpeed();
+        harpyMoveSpeed = PrimitiveMobsConfigSpecial.getHarpyMoveSpeed();
+
+        harpyReleaseTimeNeeded = PrimitiveMobsConfigSpecial.getHarpyReleaseTimeNeeded();
+        harpyGrabbingMinimumReleaseDamage = PrimitiveMobsConfigSpecial.getHarpyGrabbingMinimumReleaseDamage();
+        harpyGrabbingDamagedTimesNeeded = PrimitiveMobsConfigSpecial.getHarpyGrabbingDamagedTimesNeeded();
+
+        harpyReleaseTime = 0;
+        harpyGrabbingDamagedTimes = 0;
 	}
 
     protected void initEntityAI()
@@ -49,6 +71,7 @@ public class EntityHarpy extends EntityMMFlyingMob implements IMultiMob {
     {
         super.applyEntityAttributes();
         this.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(20.0D);
+        this.getEntityAttribute(SharedMonsterAttributes.ATTACK_DAMAGE).setBaseValue(this.harpyAttackDamage);
         this.getEntityAttribute(SharedMonsterAttributes.FLYING_SPEED).setBaseValue(0.5000000059604645D);
         this.getEntityAttribute(SharedMonsterAttributes.MOVEMENT_SPEED).setBaseValue(0.20000000298023224D);
     }
@@ -63,11 +86,17 @@ public class EntityHarpy extends EntityMMFlyingMob implements IMultiMob {
     {
     	if(this.isBeingRidden())
     	{
+//Release timer
+            ++harpyReleaseTime;
     		this.motionY = 0.25F;
-    		
-    		if(!this.world.isRemote && (getDistanceToGround(new BlockPos(this.posX, this.posY, this.posZ)) >= 20 || !this.world.isAirBlock(new BlockPos(this.posX, this.posY + 1, this.posZ))))
+//Releases target if max time reached or banged on a ceiling
+    		if(!this.world.isRemote && this.harpyReleaseTime >= this.harpyReleaseTimeNeeded 
+            || !this.world.isAirBlock(new BlockPos(this.posX, this.posY + 1, this.posZ)))
     		{
     			this.removePassengers();
+//Resets grab release state
+                this.harpyReleaseTime = 0;
+                this.harpyGrabbingDamagedTimes = 0;              
     		}
     	}
 
@@ -95,10 +124,31 @@ public class EntityHarpy extends EntityMMFlyingMob implements IMultiMob {
      */
     public boolean attackEntityFrom(DamageSource source, float amount)
     {
-    	if(!this.world.isRemote && this.isBeingRidden())
-    	{
-    		this.removePassengers();
-    	}
+//If being damaged is configured to result in release
+        if(this.harpyGrabbingDamagedTimesNeeded > 0)
+        {
+//If grabbing target
+            if(!this.world.isRemote && this.isBeingRidden())
+            {
+//If it takes arrow or melee damage that meets threshold
+                if((amount >= (float) this.harpyGrabbingMinimumReleaseDamage) && 
+                (source.damageType.equals("arrow") || source.damageType.equals("mob") || source.damageType.equals("player")))
+                {
+//If damage has occurred needed amount of times
+                    ++this.harpyGrabbingDamagedTimes;
+
+                    if(this.harpyGrabbingDamagedTimes >= this.harpyGrabbingDamagedTimesNeeded)
+                    {
+//Release target
+                        this.removePassengers();
+//Resets grab released state
+                        this.harpyReleaseTime = 0;
+                        this.harpyGrabbingDamagedTimes = 0;              
+                    }
+                }
+            }
+        }
+
     	return super.attackEntityFrom(source, amount);
     }
     
@@ -135,22 +185,23 @@ public class EntityHarpy extends EntityMMFlyingMob implements IMultiMob {
 	    {
 	        double d0 = this.getAttackReachSqr(p_190102_1_);
 
+//Check attack reach and attack tick
 	        if (p_190102_2_ <= d0 && this.attackTick <= 0)
 	        {
-	        	if(this.attacker.getAttackTarget().isBeingRidden() || !this.attacker.world.canSeeSky(new BlockPos(this.attacker.posX, this.attacker.posY, this.attacker.posZ)))
+//Removed Harpy needing to not see sky
+	        	if(this.attacker.getAttackTarget().isBeingRidden())
 	        	{
 		            this.attacker.swingArm(EnumHand.MAIN_HAND);
 		            this.attacker.attackEntityAsMob(p_190102_1_);
 	        	}
+//If target not grabbed then grab
 	        	else
-	        	{
-	        		this.attacker.getAttackTarget().startRiding(this.attacker);
-	        	}
-	        	
+	        	{        		
+                    this.attacker.getAttackTarget().startRiding(this.attacker);
+	        	}	        	
 	            this.attackTick = 20;
 	        }
 	    }
-
     }
     
 	@Override

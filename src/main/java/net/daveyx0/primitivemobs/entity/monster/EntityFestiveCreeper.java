@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 
 import net.daveyx0.multimob.entity.IMultiMob;
 import net.daveyx0.multimob.entity.ai.EntityAIBackOffFromEntity;
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.daveyx0.primitivemobs.entity.item.EntityPrimitiveTNTPrimed;
 import net.minecraft.entity.EntityLivingBase;
@@ -36,7 +37,7 @@ public class EntityFestiveCreeper extends EntityPrimitiveCreeper implements IMul
     {
         this.tasks.addTask(1, new EntityAISwimming(this));
         this.tasks.addTask(2, new EntityFestiveCreeper.EntityAIThrowTNT(this));
-        this.tasks.addTask(3, new EntityAIBackOffFromEntity(this, 7.5D, true));
+        this.tasks.addTask(3, new EntityAIBackOffFromEntity(this, PrimitiveMobsConfigSpecial.getFestiveCreeperRetreatDistance(), true));
         this.tasks.addTask(4, new EntityAIAvoidEntity(this, EntityOcelot.class, 6.0F, 1.0D, 1.2D));
         this.tasks.addTask(5, new EntityAIAttackMelee(this, 1.0D, false));
         this.tasks.addTask(6, new EntityAIWander(this, 0.8D));
@@ -58,11 +59,16 @@ public class EntityFestiveCreeper extends EntityPrimitiveCreeper implements IMul
     	EntityLivingBase target;
     	float power;
     	int attackCooldown;
+        int ringAttackCooldown;
+        int ringAttackAmount;
     	
     	public EntityAIThrowTNT(EntityFestiveCreeper entityFestiveCreeper) {
     		creeper = entityFestiveCreeper;
-    		power = 1.5F;
+    		power = (float) PrimitiveMobsConfigSpecial.getFestiveCreeperPowerBase();
     		attackCooldown = 0;
+//Lower initial cooldown for ring attack
+            ringAttackCooldown = 100;
+            ringAttackAmount = PrimitiveMobsConfigSpecial.getFestiveCreeperRingAttackAmount();
 		}
 
 		/**
@@ -82,7 +88,12 @@ public class EntityFestiveCreeper extends EntityPrimitiveCreeper implements IMul
 	        }
 	        else
 	        {
-	        	if(this.creeper.getDistance(target) > 2.0D && this.creeper.getDistanceSq(target) < 144D && this.creeper.canEntityBeSeen(target))
+//Another example of short circuit
+//being useful, this time to save some computation.
+//Condition for this one is for the festive creeper to have sight and range to the target
+	        	if(this.creeper.canEntityBeSeen(target) && 
+                (PrimitiveMobsConfigSpecial.getFestiveCreeperRangeIgnore() || 
+                (this.creeper.getDistance(target) > 2.0D && this.creeper.getDistanceSq(target) < Math.pow(PrimitiveMobsConfigSpecial.getFestiveCreeperRange(), 2))))
 	        	{
 	        		return true;
 	        	}
@@ -106,6 +117,8 @@ public class EntityFestiveCreeper extends EntityPrimitiveCreeper implements IMul
 	    {
 	    	target = null;
 	    	attackCooldown = 0;
+//Won't instantly do ring attack
+            ringAttackCooldown = 100;
 	    }
 	    
 	    /**
@@ -113,21 +126,55 @@ public class EntityFestiveCreeper extends EntityPrimitiveCreeper implements IMul
 	     */
 	    public void updateTask()
 	    {
-	    	if(this.creeper.getPowered()){power = 3;};
+	    	if(this.creeper.getPowered())
+            { 
+                power = (float) PrimitiveMobsConfigSpecial.getFestiveCreeperPowerCharged();
+            }
 	    	
-	    	if(target != null && --attackCooldown <= 0)
+	    	if(target != null)
 	    	{
-	    		if(!getEntityWorld().isRemote)
-	    		{
-	    			EntityPrimitiveTNTPrimed tnt = new EntityPrimitiveTNTPrimed(this.creeper.getEntityWorld(), creeper.posX, creeper.posY, creeper.posZ, this.creeper, power, 30);
-	    			tnt.setLocationAndAngles(this.creeper.posX, this.creeper.posY, this.creeper.posZ, this.creeper.rotationYaw, 0.0F);
-	    			tnt.motionX = (this.target.posX - tnt.posX) / 18D;
-	    			tnt.motionY = (this.target.posY - tnt.posY) / 18D + 0.5D;
-	    			tnt.motionZ = (this.target.posZ - creeper.posZ) / 18D;
-	    			this.creeper.getEntityWorld().spawnEntity(tnt);
-	    		}
-	    		this.creeper.playSound(SoundEvents.ENTITY_TNT_PRIMED, this.creeper.getSoundVolume(), this.creeper.getSoundPitch());
-	    		attackCooldown = 60;
+//If TNT ring is allowed and decremented cooldown is 0
+                if((PrimitiveMobsConfigSpecial.getFestiveCreeperRingAttackBase() 
+                    || (PrimitiveMobsConfigSpecial.getFestiveCreeperRingAttackCharged() && this.creeper.getPowered())) 
+                    && --ringAttackCooldown <= 0) 
+                {
+                    if(!getEntityWorld().isRemote) 
+                    {
+//Get hypotenuse to the target
+                        double horizontalDistance = Math.sqrt(Math.pow(this.target.posX - creeper.posX, 2) + Math.pow(this.target.posZ - creeper.posZ, 2));
+//8 TNTs at the target's horizontal distance for each angle
+                        int angles = this.ringAttackAmount;
+                        float angleVal = (360 / angles);
+                        
+                        for(int angleAt = 0; angleAt < angles; angleAt++) 
+                        {
+	    			        EntityPrimitiveTNTPrimed tnt = new EntityPrimitiveTNTPrimed(this.creeper.getEntityWorld(), creeper.posX, creeper.posY, creeper.posZ, this.creeper, power, 30);
+	    			        tnt.setLocationAndAngles(this.creeper.posX, this.creeper.posY, this.creeper.posZ, this.creeper.rotationYaw, 0.0F);
+//Use cos and sine to rotate horizontal aim vectors
+	    			        tnt.motionX = (horizontalDistance * Math.sin(Math.toRadians(angleVal * angleAt))) / 18D;
+	    			        tnt.motionY = (this.target.posY - tnt.posY) / 18D + 0.5D;
+	    			        tnt.motionZ = (horizontalDistance * Math.cos(Math.toRadians(angleVal * angleAt))) / 18D;
+	    			        this.creeper.getEntityWorld().spawnEntity(tnt);
+                        }                           
+                    }
+	    		    this.creeper.playSound(SoundEvents.ENTITY_TNT_PRIMED, this.creeper.getSoundVolume(), this.creeper.getSoundPitch());
+                    ringAttackCooldown = 250;
+                } 
+//Regular old attack
+                if(--attackCooldown <= 0)    
+                {                
+                    if(!getEntityWorld().isRemote) 
+                    {
+    			        EntityPrimitiveTNTPrimed tnt = new EntityPrimitiveTNTPrimed(this.creeper.getEntityWorld(), creeper.posX, creeper.posY, creeper.posZ, this.creeper, power, 30);
+    			        tnt.setLocationAndAngles(this.creeper.posX, this.creeper.posY, this.creeper.posZ, this.creeper.rotationYaw, 0.0F);
+    			        tnt.motionX = (this.target.posX - tnt.posX) / 18D;
+    			        tnt.motionY = (this.target.posY - tnt.posY) / 18D + 0.5D;
+    			        tnt.motionZ = (this.target.posZ - creeper.posZ) / 18D;
+    			        this.creeper.getEntityWorld().spawnEntity(tnt);
+    		        }
+    		        this.creeper.playSound(SoundEvents.ENTITY_TNT_PRIMED, this.creeper.getSoundVolume(), this.creeper.getSoundPitch());
+    		        attackCooldown = 60;
+                }
 	    	}
 	    }
     }
@@ -143,5 +190,4 @@ public class EntityFestiveCreeper extends EntityPrimitiveCreeper implements IMul
     	if(type == EnumCreatureType.MONSTER){return false;}
     	return super.isCreatureType(type, forSpawnCount);
     }
-
 }

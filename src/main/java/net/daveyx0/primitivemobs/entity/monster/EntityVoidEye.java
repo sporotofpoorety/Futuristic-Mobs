@@ -11,12 +11,14 @@ import net.daveyx0.multimob.entity.IMultiMob;
 import net.daveyx0.multimob.entity.ai.EntityAIFlyingAround;
 import net.daveyx0.multimob.entity.ai.EntityAISenseEntityNearestPlayer;
 import net.daveyx0.multimob.message.MMMessageRegistry;
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
 import net.daveyx0.primitivemobs.message.MessageTeleportEye;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.EnumCreatureType;
+import net.minecraft.entity.IEntityLivingData;
 import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.ai.EntityAIBase;
 import net.minecraft.entity.ai.EntityAILookIdle;
@@ -34,6 +36,7 @@ import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.EnumDifficulty;
 import net.minecraft.world.World;
 import net.minecraft.entity.boss.EntityDragon;
@@ -44,12 +47,14 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
     private static final DataParameter<Boolean> CAN_SEE_TARGET = EntityDataManager.<Boolean>createKey(EntityVoidEye.class, DataSerializers.BOOLEAN);
     private static final DataParameter<Boolean> DOES_TELEPORT = EntityDataManager.<Boolean>createKey(EntityVoidEye.class, DataSerializers.BOOLEAN);
     private EntityLivingBase targetedEntity;
-    private int clientSideAttackTime;
+    protected int clientSideAttackTime;
+    protected int attackDuration;
 
 	public EntityVoidEye(World worldIn) {
 		super(worldIn);
 		this.setSize(0.6f, 0.6f);
 		this.setTeleports(false);
+        this.attackDuration = PrimitiveMobsConfigSpecial.getVoidEyeAttackDuration();
 	}
 	
     protected void applyEntityAttributes()
@@ -64,13 +69,20 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
 	
     protected void initEntityAI()
     {
-        this.tasks.addTask(1, new EntityVoidEye.AIVoidEyeAttack(this));
         this.tasks.addTask(2, new EntityAIFlyingAround(this));
         this.tasks.addTask(3, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));
         this.tasks.addTask(4, new EntityAILookIdle(this));
         this.targetTasks.addTask(0, new EntityAISenseEntityNearestPlayer(this, 18));
     }
     
+    @Override public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
+    {
+        super.onInitialSpawn(difficulty, livingdata);
+
+        this.tasks.addTask(1, new EntityVoidEye.AIVoidEyeAttack(this, PrimitiveMobsConfigSpecial.getVoidEyeIgnoresWalls()));
+
+        return livingdata;
+    } 
 
     protected void entityInit()
     {
@@ -102,7 +114,7 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
     
     public float getAttackAnimationScale(float p_175477_1_)
     {
-        return ((float)this.clientSideAttackTime + p_175477_1_) / (float)this.getAttackDuration();
+        return ((float)this.clientSideAttackTime + p_175477_1_) / (float)this.attackDuration;
     }
     
     public float getEyeHeight()
@@ -120,7 +132,7 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
         {
             if (this.hasTargetedEntity())
             {
-                if (this.clientSideAttackTime < this.getAttackDuration())
+                if (this.clientSideAttackTime < this.attackDuration)
                 {
                     ++this.clientSideAttackTime;
                 }
@@ -222,11 +234,6 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
             this.targetedEntity = null;
         }
     }
-    
-    public int getAttackDuration()
-    {
-        return 75;
-    }
 
     private void setTargetedEntity(int entityId)
     {
@@ -264,10 +271,12 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
     {
         private final EntityVoidEye eye;
         private int tickCounter;
+        private boolean ignoreWalls;
 
-        public AIVoidEyeAttack(EntityVoidEye eye)
+        public AIVoidEyeAttack(EntityVoidEye eye, boolean wallIgnore)
         {
             this.eye = eye;
+            this.ignoreWalls = wallIgnore;
             this.setMutexBits(3);
         }
 
@@ -277,7 +286,9 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
         public boolean shouldExecute()
         {
             EntityLivingBase entitylivingbase = this.eye.getAttackTarget();
+            //Get other void eyes nearby
             List<EntityVoidEye> voidEyesList =  this.eye.world.<EntityVoidEye>getEntitiesWithinAABB(EntityVoidEye.class, this.eye.getEntityBoundingBox().grow(20, 20, 20), null);
+            //If they're already attacking then don't also attack
             if(voidEyesList != null && !voidEyesList.isEmpty() && !this.eye.hasTargetedEntity())
             {
             	for(EntityVoidEye voidEye : voidEyesList)
@@ -318,6 +329,16 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
         public void updateTask()
         {
             EntityLivingBase entitylivingbase = this.eye.getAttackTarget();
+
+            if(!this.ignoreWalls)
+            {
+                if(!this.eye.canEntityBeSeen(entitylivingbase))
+                {
+                    this.resetTask();
+                    return;
+                }
+            }
+
             this.eye.getNavigator().clearPath();
             this.eye.getMoveHelper().action = Action.WAIT;
             this.eye.getLookHelper().setLookPositionWithEntity(entitylivingbase, 90.0F, 90.0F);
@@ -330,7 +351,7 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
                     this.eye.setTargetedEntity(this.eye.getAttackTarget().getEntityId());
                     //this.eye.world.setEntityState(this.eye, (byte)21);
                 }
-                else if (this.tickCounter >= this.eye.getAttackDuration())
+                else if (this.tickCounter >= this.eye.attackDuration)
                 {
                     if(this.eye.canSeeTarget())
                     {

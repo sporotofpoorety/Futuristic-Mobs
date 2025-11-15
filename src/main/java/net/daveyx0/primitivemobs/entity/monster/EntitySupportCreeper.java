@@ -1,16 +1,21 @@
 package net.daveyx0.primitivemobs.entity.monster;
 
+import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
 import net.daveyx0.multimob.common.capabilities.CapabilityTameableEntity;
 import net.daveyx0.multimob.common.capabilities.ITameableEntity;
 import net.daveyx0.multimob.util.EntityUtil;
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.EnumCreatureType;
+import net.minecraft.entity.IEntityLivingData;
 import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.ai.EntityAIAttackMelee;
 import net.minecraft.entity.ai.EntityAIAvoidEntity;
@@ -26,27 +31,54 @@ import net.minecraft.entity.monster.EntityMob;
 import net.minecraft.entity.passive.EntityOcelot;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.MobEffects;
+import net.minecraft.potion.Potion;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.World;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
 public class EntitySupportCreeper extends EntityPrimitiveCreeper {
 
+    public ArrayList<String> buffIdList = new ArrayList<>();
+    public ArrayList<Potion> buffObjectList = new ArrayList<>();
+    public ArrayList<Integer> buffLengthList = new ArrayList<>();
+    public ArrayList<Integer> buffStrengthList = new ArrayList<>();
+    public ArrayList<Integer> buffStrengthListPowered = new ArrayList<>();
+
 	public EntitySupportCreeper(World worldIn) {
 		super(worldIn);
-
+//Buff ids provided by user
+        buffIdList = new ArrayList<>(Arrays.asList(PrimitiveMobsConfigSpecial.getSupportCreeperBuffList()));
+//Conversion of buff Id list to Potion object list
+        for(String buffId : buffIdList)
+        {
+            Potion potion = ForgeRegistries.POTIONS.getValue(new ResourceLocation(buffId));
+            buffObjectList.add(potion);
+        }
+//Use streams to convert the ints in the arrays to Integers for the ArrayLists
+        buffLengthList = new ArrayList<>(Arrays.stream(PrimitiveMobsConfigSpecial.getSupportCreeperBuffLengthList()).boxed().collect(Collectors.toList()));
+        buffStrengthList = new ArrayList<>(Arrays.stream(PrimitiveMobsConfigSpecial.getSupportCreeperBuffStrengthList()).boxed().collect(Collectors.toList()));
+//Strength of buffs when powered
+        buffStrengthListPowered = new ArrayList<>(Arrays.stream(PrimitiveMobsConfigSpecial.getSupportCreeperBuffStrengthListPowered()).boxed().collect(Collectors.toList()));
 	}
 	
     protected void initEntityAI()
     {
         this.tasks.addTask(1, new EntityAISwimming(this));
-        this.tasks.addTask(2, new EntitySupportCreeper.EntityAIBuffMob(this));
         this.tasks.addTask(3, new EntityAIAvoidEntity(this, EntityPlayer.class, 6.0F, 1.0D, 1.2D));
         this.tasks.addTask(3, new EntityAIAvoidEntity(this, EntityOcelot.class, 6.0F, 1.0D, 1.2D));
         this.tasks.addTask(4, new EntityAIAttackMelee(this, 1.0D, false));
         this.tasks.addTask(5, new EntityAIWander(this, 0.8D));
         this.tasks.addTask(6, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));
         this.tasks.addTask(6, new EntityAILookIdle(this));
+    }
+
+    @Nullable
+    public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, @Nullable IEntityLivingData livingdata)
+    {
+        this.tasks.addTask(2, new EntitySupportCreeper.EntityAIBuffMob(this, this.buffObjectList, this.buffLengthList, this.buffStrengthList, this.buffStrengthListPowered));        	
+        return super.onInitialSpawn(difficulty, livingdata);
     }
     
     protected void applyEntityAttributes()
@@ -76,13 +108,19 @@ public class EntitySupportCreeper extends EntityPrimitiveCreeper {
 
     	EntitySupportCreeper creeper;
     	EntityLivingBase mobIdol;
-    	int strength;
+        ArrayList<Potion> buffObjects;
+        ArrayList<Integer> buffLengths;
+        ArrayList<Integer> buffStrengths;
+        ArrayList<Integer> buffStrengthsPowered;
     	
-		public EntityAIBuffMob(EntitySupportCreeper entitySupportCreeper) {
+		public EntityAIBuffMob(EntitySupportCreeper entitySupportCreeper, ArrayList<Potion> buffObjects, ArrayList<Integer> buffLengths, ArrayList<Integer> buffStrengths, ArrayList<Integer> buffStrengthsPowered) {
 
 			creeper = entitySupportCreeper;
 			mobIdol = null;
-			strength = 1;
+            this.buffObjects = buffObjects;
+            this.buffLengths = buffLengths;
+            this.buffStrengths = buffStrengths;
+            this.buffStrengthsPowered = buffStrengthsPowered;
 		}
 		/**
 		* Returns whether the EntityAIBase should begin execution.
@@ -138,36 +176,47 @@ public class EntitySupportCreeper extends EntityPrimitiveCreeper {
 			}
 			else if(tameable == null || !tameable.isTamed())
 			{
-	        List<Entity> list = this.creeper.getEntityWorld().getEntitiesWithinAABBExcludingEntity(this.creeper, this.creeper.getEntityBoundingBox().expand(10.0D, 4.0D, 10.0D));
-	        EntityMob mob = null;
-	        double d0 = Double.MAX_VALUE;
+	            List<Entity> list = this.creeper.getEntityWorld().getEntitiesWithinAABBExcludingEntity(this.creeper, this.creeper.getEntityBoundingBox().expand(10.0D, 4.0D, 10.0D));
+	            EntityMob mob = null;
+	            double d0 = Double.MAX_VALUE;
 
-	        for (Entity entity : list)
-	        {
-	        	if(entity != null && entity instanceof EntityMob && !(entity instanceof EntitySupportCreeper))
-	        	{
-	        		EntityMob mob1 = (EntityMob)entity;
-	        		
-	        		if(mob1.getActivePotionEffects().isEmpty())
-	        		{
-	        			double d1 = this.creeper.getDistanceSq(mob1);
+	            for (Entity entity : list)
+	            {
+	            	if(entity != null && entity instanceof EntityMob && !(entity instanceof EntitySupportCreeper))
+	            	{
+	            		EntityMob mob1 = (EntityMob)entity;
+	            		
+	            		if(mob1.getActivePotionEffects().isEmpty())
+	            		{
+	            			double d1 = this.creeper.getDistanceSq(mob1);
 
-	        			if (d1 <= d0)
-	        			{
-	        				d0 = d1;
-                    		mob = mob1;
-	        			}
-	        		}
-	        	}
-	        }
-	        
-	        if(mob != null)
-	        {
-	        	 return mob;
-	        }
+	            			if (d1 <= d0)
+	            			{
+	            				d0 = d1;
+                        		mob = mob1;
+	            			}
+	            		}
+	            	}
+	            }
+	            
+	            if(mob != null)
+	            {
+	            	 return mob;
+	            }
 			}
 	        return null;
 	    }
+
+        public void applySpecifiedBuffsIfAbsent(EntityLivingBase entity, ArrayList<Potion> buffObjects, ArrayList<Integer> buffLengths, ArrayList<Integer> buffStrengths)
+        {
+            for(int i = 0; i < buffObjects.size(); i++)
+            {
+                if(entity.getActivePotionEffect(buffObjects.get(i)) == null)
+                {
+                    entity.addPotionEffect(new PotionEffect(buffObjects.get(i), buffLengths.get(i), buffStrengths.get(i)));
+                }
+            }
+        }
 	    
 	    /**
 	     * Updates the task
@@ -179,63 +228,60 @@ public class EntitySupportCreeper extends EntityPrimitiveCreeper {
 	    		this.mobIdol = this.findMobToSupport();
 	    	}
 	    	else
-	    	{
-	    	if(this.creeper.getPowered()) {strength = 2;}
-	    	else {strength = 1;}
-	    	
-	        if (this.creeper.getDistance(this.mobIdol) > 2D)
-	        {
-	            this.creeper.getNavigator().tryMoveToEntityLiving(this.mobIdol, 1F);
-	        }
-	        
-            if(this.mobIdol instanceof EntityCreeper)
-            {
-            	EntityCreeper entitycreeper = (EntityCreeper)mobIdol;
-            	
-            	if(!entitycreeper.getPowered() && !getEntityWorld().isRemote)	
-            	{
-            		entitycreeper.onStruckByLightning(null);
-            	}
-            	
-            	if(entitycreeper.getActivePotionEffect(MobEffects.FIRE_RESISTANCE) == null)
-            	{
-            		entitycreeper.addPotionEffect(new PotionEffect(MobEffects.FIRE_RESISTANCE, 60, strength));
-            	}
-            	
-            	if(this.creeper.getActivePotionEffect(MobEffects.FIRE_RESISTANCE) == null)
-            	{
-            		this.creeper.addPotionEffect(new PotionEffect(MobEffects.FIRE_RESISTANCE, 60, strength));
-            	}
-            }
-            else
-            {
-                if(this.mobIdol instanceof EntityTrollager)
+	    	{  	
+	            if (this.creeper.getDistance(this.mobIdol) > 2D)
+	            {
+	                this.creeper.getNavigator().tryMoveToEntityLiving(this.mobIdol, 1F);
+	            }
+	            
+                if(this.mobIdol instanceof EntityCreeper)
                 {
-                	EntityTrollager entitytrollager = (EntityTrollager)mobIdol;
-                	entitytrollager.isBeingSupported = true;
+                	EntityCreeper entitycreeper = (EntityCreeper)mobIdol;
+//Make creepers charged
+                	if(!entitycreeper.getPowered() && !getEntityWorld().isRemote)	
+                	{
+                		entitycreeper.onStruckByLightning(null);
+                	}
+//Make creepers fire immune
+                	if(entitycreeper.getActivePotionEffect(MobEffects.FIRE_RESISTANCE) == null)
+                	{
+                		entitycreeper.addPotionEffect(new PotionEffect(MobEffects.FIRE_RESISTANCE, 60, 100));
+                	}
                 }
-            	if(mobIdol.getActivePotionEffect(MobEffects.STRENGTH) == null)
-            	{
-            		mobIdol.addPotionEffect(new PotionEffect(MobEffects.STRENGTH, 60, strength));
-            	}
-            	if(mobIdol.getActivePotionEffect(MobEffects.SPEED) == null)
-            	{
-            		mobIdol.addPotionEffect(new PotionEffect(MobEffects.SPEED, 60, strength));
-            	}
-            	if(mobIdol.getActivePotionEffect(MobEffects.FIRE_RESISTANCE) == null)
-            	{
-            		mobIdol.addPotionEffect(new PotionEffect(MobEffects.FIRE_RESISTANCE, 60, strength));
-            	}
-            }
-            
-            if(this.creeper.getActivePotionEffect(MobEffects.SPEED) == null)
-            {
-            	creeper.addPotionEffect(new PotionEffect(MobEffects.SPEED, 60, strength));
-            }
-	    	}
-	        
-	    }
-    	
+//If supported mob not creeper
+                else
+                {
+//If trollager set stone immune
+                    if(this.mobIdol instanceof EntityTrollager)
+                    {
+                    	EntityTrollager entitytrollager = (EntityTrollager)mobIdol;
+                    	entitytrollager.isBeingSupported = true;
+                    }
+//Apply specified buffs to all
+                    if(this.creeper.getPowered())
+                    {
+                        this.applySpecifiedBuffsIfAbsent(this.mobIdol, 
+                        this.buffObjects, this.buffLengths, this.buffStrengthsPowered);
+                    }
+                    else
+                    {
+                        this.applySpecifiedBuffsIfAbsent(this.mobIdol, 
+                        this.buffObjects, this.buffLengths, this.buffStrengths);
+                    }
+                }
+//Buff self
+                    if(this.creeper.getPowered())
+                    {
+                        this.applySpecifiedBuffsIfAbsent(this.mobIdol, 
+                        this.buffObjects, this.buffLengths, this.buffStrengthsPowered);
+                    }
+                    else
+                    {
+                        this.applySpecifiedBuffsIfAbsent(this.mobIdol, 
+                        this.buffObjects, this.buffLengths, this.buffStrengths);
+                    }
+	    	}       
+	    }	
     }
     
     @Nullable
@@ -243,6 +289,4 @@ public class EntitySupportCreeper extends EntityPrimitiveCreeper {
     {
         return PrimitiveMobsLootTables.ENTITIES_SUPPORTCREEPER;
     }
-
-
 }

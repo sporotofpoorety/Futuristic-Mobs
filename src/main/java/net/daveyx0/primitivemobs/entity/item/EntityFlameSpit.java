@@ -13,8 +13,7 @@ public class EntityFlameSpit extends EntitySmallFireball {
 	}
 	
 	public EntityFlameSpit(World worldIn, EntityLivingBase shooter, double accelX, double accelY, double accelZ) {
-		super(worldIn, shooter, accelX, accelY, accelZ);
-		
+		super(worldIn, shooter, accelX, accelY, accelZ);	
 	}
 	
     protected EnumParticleTypes getParticleType()
@@ -36,7 +35,7 @@ public class EntityFlameSpit extends EntitySmallFireball {
         	}
         }
         
-        if(this.ticksExisted > 30)
+        if(this.ticksExisted > 200)
         {
         	this.setDead();
         }

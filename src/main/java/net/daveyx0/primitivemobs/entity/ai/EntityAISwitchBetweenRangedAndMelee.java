@@ -12,20 +12,24 @@ public class EntityAISwitchBetweenRangedAndMelee extends EntityAIAttackMelee
 	private final EntitySkeleton entity;
 	private final double moveSpeedAmp;
 	private int attackCooldown;
+//Sets outer bound distances that force strafe pattern
 	private final float maxAttackDistance;
+    private final int useTimeNeeded;
 	private int attackTime = -1;
 	private int seeTime;
 	private boolean strafingClockwise;
 	private boolean strafingBackwards;
+//Controls strafing oscillation
 	private int strafingTime = -1;
 
-	public EntityAISwitchBetweenRangedAndMelee(EntitySkeletonWarrior skeleton, double speedAmplifier, int delay, float maxDistance)
+	public EntityAISwitchBetweenRangedAndMelee(EntitySkeletonWarrior skeleton, double speedAmplifier, int delay, float maxDistance, int useNeeded)
 	{
 		super(skeleton, speedAmplifier, false);
 		this.entity = skeleton;
 		this.moveSpeedAmp = speedAmplifier;
 		this.attackCooldown = delay;
-		this.maxAttackDistance = maxDistance * maxDistance;;
+		this.maxAttackDistance = maxDistance * maxDistance;
+        this.useTimeNeeded = useNeeded;
 	}
 
 	public void setAttackCooldown(int p_189428_1_)
@@ -82,7 +86,8 @@ public class EntityAISwitchBetweenRangedAndMelee extends EntityAIAttackMelee
 	{
 		EntityLivingBase entitylivingbase = this.entity.getAttackTarget();
 
-		if (entitylivingbase != null) { 
+		if (entitylivingbase != null) {
+//Ranged and strafe behavior
 			if(this.isBowInMainhand()) {
 				double d0 = this.entity.getDistanceSq(entitylivingbase.posX, entitylivingbase.getEntityBoundingBox().minY, entitylivingbase.posZ);
 				boolean flag = this.entity.getEntitySenses().canSee(entitylivingbase);
@@ -113,6 +118,7 @@ public class EntityAISwitchBetweenRangedAndMelee extends EntityAIAttackMelee
 					this.strafingTime = -1;
 				}
 
+//At 1 second intervals of strafing alternate strafing randomly
 				if (this.strafingTime >= 20)
 				{
 					if ((double)this.entity.getRNG().nextFloat() < 0.3D)
@@ -127,7 +133,7 @@ public class EntityAISwitchBetweenRangedAndMelee extends EntityAIAttackMelee
 
 					this.strafingTime = 0;
 				}
-
+//Strafing forced to change at certain distance intervals
 				if (this.strafingTime > -1)
 				{
 					if (d0 > (double)(this.maxAttackDistance * 0.75F))
@@ -157,7 +163,7 @@ public class EntityAISwitchBetweenRangedAndMelee extends EntityAIAttackMelee
 					{
 						int i = this.entity.getItemInUseMaxCount();
 
-						if (i >= 20)
+						if (i >= useTimeNeeded)
 						{
 							this.entity.resetActiveHand();
 							this.entity.attackEntityWithRangedAttack(entitylivingbase, ItemBow.getArrowVelocity(i));
@@ -170,12 +176,12 @@ public class EntityAISwitchBetweenRangedAndMelee extends EntityAIAttackMelee
 					this.entity.setActiveHand(EnumHand.MAIN_HAND);
 				}
 			}
+//Simple melee
 			else
 			{
 				this.entity.setMoveStrafing(0);
 				super.updateTask();
 			}
 		}
-		
 	}
 }

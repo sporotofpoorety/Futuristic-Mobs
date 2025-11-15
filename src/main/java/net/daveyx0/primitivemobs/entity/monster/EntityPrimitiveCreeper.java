@@ -3,6 +3,7 @@ package net.daveyx0.primitivemobs.entity.monster;
 import net.daveyx0.multimob.common.capabilities.CapabilityTameableEntity;
 import net.daveyx0.multimob.common.capabilities.ITameableEntity;
 import net.daveyx0.multimob.util.EntityUtil;
+import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
 import net.minecraft.entity.EnumCreatureType;
 import net.minecraft.entity.monster.EntityCreeper;
 import net.minecraft.nbt.NBTTagCompound;
@@ -15,7 +16,7 @@ import net.minecraft.world.World;
 
 public class EntityPrimitiveCreeper extends EntityCreeper
 {
-    private int timeSinceIgnited;
+    protected int timeSinceIgnited;
 	private int lastActiveTime;
 	
     private static final DataParameter<Boolean> BABY = EntityDataManager.<Boolean>createKey(EntityPrimitiveCreeper.class, DataSerializers.BOOLEAN);
@@ -25,10 +26,43 @@ public class EntityPrimitiveCreeper extends EntityCreeper
     private float ageWidth = -1.0F;
     private float ageHeight;
 
+//Added new fields to base class to enable modular special swell
+
+	protected float explosionRadius;
+    protected int creeperSpecialCooldown;
+    protected int creeperSpecialCooldownInterrupted;
+    protected int creeperSpecialCooldownAttacked;
+    protected int creeperSpecialCooldownFrustrated;
+    protected int creeperSpecialCooldownStunned;
+    protected int creeperSpecialIgnitedTime;
+//Placeholder for base class
+    protected int creeperSpecialIgnitedTimeMax;
+    protected float creeperSpecialInterruptedDamage;
+    protected int creeperSpecialInterrupted;
+    protected int creeperSpecialInterruptedMax;
+
+//And new data parameter
+    protected static final DataParameter<Integer> STATE_SPECIAL = EntityDataManager.<Integer>createKey(EntityPrimitiveCreeper.class, DataSerializers.VARINT);
+
+
 	public EntityPrimitiveCreeper(World worldIn)
     {
         super(worldIn);
         this.setSize(0.6F, 1.7F);
+
+//New
+        setCreeperStateSpecial(-1);
+
+//These, by themselves,
+//won't do anything, but gotta have 
+//values to prevent null pointer exceptions
+        creeperSpecialCooldown = 0;
+        creeperSpecialCooldownInterrupted = 69420;
+        creeperSpecialCooldownAttacked = 69420;
+        creeperSpecialCooldownFrustrated = 69420;
+        creeperSpecialCooldownStunned = 69420;
+        creeperSpecialIgnitedTime = 0;
+        creeperSpecialInterrupted = 0;
     }
     
     /**
@@ -36,6 +70,25 @@ public class EntityPrimitiveCreeper extends EntityCreeper
      */
     public void onUpdate()
     {
+//Below is base special swell logic
+        if(this.creeperSpecialCooldown > 0)
+        {
+            this.creeperSpecialCooldown--;
+        }
+
+        //Cancel special swell if state negative
+        if(this.getCreeperStateSpecial() < 1)
+        {
+            creeperSpecialIgnitedTime = 0;
+        }
+        
+        //Special swell if has target and state set
+        if(this.getAttackTarget() != null && this.getCreeperStateSpecial() > 0)
+        {
+            //Increase special ignited time
+            creeperSpecialIgnitedTime++;
+        }
+
     	//Disable normal explosion`
     	if(this instanceof EntityFestiveCreeper)
     	{
@@ -49,12 +102,13 @@ public class EntityPrimitiveCreeper extends EntityCreeper
     		{
         		this.setIgnitedTime(0);
         		this.setCreeperState(-1);
+                this.setCreeperStateSpecial(-1);
     		}
         }
     	
         super.onUpdate();
     }
-    
+
     /**
      * Called when the entity is attacked.
      */
@@ -66,19 +120,50 @@ public class EntityPrimitiveCreeper extends EntityCreeper
 			return source != DamageSource.FIREWORKS && source != DamageSource.IN_WALL  && source != DamageSource.FALL && source != DamageSource.DROWN && super.attackEntityFrom(source, amount);
 		}
 
+        //If it takes arrow or melee damage immediately cancel special attack and apply cooldown
+        if((amount >= (float) creeperSpecialInterruptedDamage) 
+        && (source.damageType.equals("arrow") || source.damageType.equals("mob") || source.damageType.equals("player")))
+        {
+            //If attacked in the middle of the swell
+            if(this.getCreeperStateSpecial() > 0)
+            {
+                //Apply stun
+                this.playSound(PrimitiveMobsSoundEvents.ENTITY_CREEPER_DIZZY, 3.0F, 1.0F);
+                this.setCreeperSpecialCooldown(this.creeperSpecialCooldownStunned);     
+            }
+            //If just attacked normally there's a smaller cooldown 
+            else
+            {
+                this.setCreeperSpecialCooldown(this.creeperSpecialCooldownAttacked);     
+            }
+
+            this.resetCreeperSpecial();        
+        }
+
         return super.attackEntityFrom(source, amount);
     }
-    
+
+    public boolean creeperSpecialConditions()
+    {
+        return true;
+    }
     
     public void setIgnitedTime(int time)
     {
     	this.timeSinceIgnited = time;
+    }
+
+    public void resetCreeperSpecial()
+    {
+        this.creeperSpecialIgnitedTime = 0;
+        this.setCreeperStateSpecial(-1);
     }
     
     protected void entityInit()
     {
         super.entityInit();
         this.dataManager.register(BABY, Boolean.valueOf(false));
+        this.getDataManager().register(STATE_SPECIAL, Integer.valueOf(-1));
     }
 
     /**
@@ -169,6 +254,13 @@ public class EntityPrimitiveCreeper extends EntityCreeper
         super.writeEntityToNBT(compound);
         compound.setInteger("Age", this.getGrowingAge());
         compound.setInteger("ForcedAge", this.forcedAge);
+//New
+        compound.setInteger("SpecialState", this.getCreeperStateSpecial());
+
+//Important states
+        compound.setInteger("SpecialCooldown", this.creeperSpecialCooldown);
+        compound.setInteger("SpecialIgnitedTime", this.creeperSpecialIgnitedTime);
+        compound.setInteger("SpecialInterrupted", this.creeperSpecialInterrupted);
     }
 
     /**
@@ -179,6 +271,19 @@ public class EntityPrimitiveCreeper extends EntityCreeper
         super.readEntityFromNBT(compound);
         this.setGrowingAge(compound.getInteger("Age"));
         this.forcedAge = compound.getInteger("ForcedAge");
+//Safety checks
+        if (compound.hasKey("SpecialState")) {
+            this.setCreeperStateSpecial(compound.getInteger("SpecialState"));
+        }
+        if (compound.hasKey("SpecialCooldown")) {
+            this.creeperSpecialCooldown = compound.getInteger("SpecialCooldown");
+        }
+        if (compound.hasKey("SpecialIgnitedTime")) {
+            this.creeperSpecialIgnitedTime = compound.getInteger("SpecialIgnitedTime");
+        }
+        if (compound.hasKey("SpecialInterrupted")) {
+            this.creeperSpecialInterrupted = compound.getInteger("SpecialInterrupted");
+        }
     }
 
     public void notifyDataManagerChange(DataParameter<?> key)
@@ -282,5 +387,66 @@ public class EntityPrimitiveCreeper extends EntityCreeper
     {
         super.setSize(this.ageWidth * scale, this.ageHeight * scale);
     }
-  
+
+//Moved to base class for 
+//modular special attack and persistent data
+    public int getCreeperStateSpecial()
+    {
+        return ((Integer)this.dataManager.get(STATE_SPECIAL)).intValue();
+    }
+
+    public void setCreeperStateSpecial(int state)
+    {
+        this.getDataManager().set(STATE_SPECIAL, Integer.valueOf(state));     
+    } 
+
+//Same for regular fields
+    public int getCreeperSpecialInterrupted()
+    {
+        return this.creeperSpecialInterrupted;
+    }
+
+    public int getCreeperSpecialInterruptedMax()
+    {
+        return this.creeperSpecialInterruptedMax;
+    }
+
+//Cooldowns won't get overriden by shorter ones
+    public void setCreeperSpecialCooldown(int cooldown)
+    {
+        if(this.creeperSpecialCooldown <= cooldown)
+        {
+            this.creeperSpecialCooldown = cooldown;
+        }
+    }
+
+    public int getCreeperSpecialCooldown()
+    {
+        return this.creeperSpecialCooldown;
+    }
+
+    public int getCreeperSpecialCooldownInterrupted()
+    {
+        return this.creeperSpecialCooldownInterrupted;
+    }
+
+    public int getCreeperSpecialCooldownAttacked()
+    {
+        return this.creeperSpecialCooldownAttacked;
+    }
+
+    public int getCreeperSpecialCooldownFrustrated()
+    {
+        return this.creeperSpecialCooldownFrustrated;
+    }
+
+    public int getCreeperSpecialCooldownStunned()
+    {
+        return this.creeperSpecialCooldownStunned;
+    }
+
+    public void setCreeperSpecialInterrupted(int interrupted)
+    {
+        this.creeperSpecialInterrupted = interrupted;
+    }
 }

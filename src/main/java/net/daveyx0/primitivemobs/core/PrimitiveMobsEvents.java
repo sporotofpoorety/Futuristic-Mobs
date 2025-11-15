@@ -15,6 +15,7 @@ import net.daveyx0.primitivemobs.entity.monster.EntityHauntedTool;
 import net.daveyx0.primitivemobs.entity.monster.EntityMimic;
 import net.daveyx0.primitivemobs.entity.monster.EntityRocketCreeper;
 import net.daveyx0.primitivemobs.entity.monster.EntitySkeletonWarrior;
+import net.daveyx0.primitivemobs.entity.passive.EntityChameleon;
 import net.daveyx0.primitivemobs.entity.passive.EntityLostMiner;
 import net.daveyx0.primitivemobs.entity.passive.EntitySheepman;
 import net.daveyx0.primitivemobs.entity.passive.EntityTravelingMerchant;
@@ -38,6 +39,7 @@ import net.minecraft.entity.passive.EntityBat;
 import net.minecraft.entity.passive.EntityVillager;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemStack;
@@ -315,20 +317,79 @@ public static class EntityEventHandler {
 	@SubscribeEvent
 	public void onSetAttackTarget(LivingSetAttackTargetEvent event)
 	{
-		EntityLivingBase entityLiving = event.getEntityLiving();
-		if(entityLiving != null && (entityLiving instanceof EntityZombie || entityLiving instanceof AbstractIllager || entityLiving instanceof EntityGoblin))
+	    EntityLiving living = (EntityLiving)event.getEntityLiving();
+//If attacker not null
+		if(living != null)
 		{
-			EntityMob mob = (EntityMob)entityLiving;
-			if(event.getTarget() instanceof EntitySheepman)
-			{
-				mob.setAttackTarget(null);
-			}
+//Nothing targets chameleons
+		    if(event.getTarget() instanceof EntityChameleon)
+		    {
+			    living.setAttackTarget(null);
+		    }   
 		}
-		
+
+//Reworked camouflage armor
+//(Hopefully functional this time lol)
 		if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
 		{
 			EntityPlayer player = (EntityPlayer)event.getTarget();
-			EntityLiving living = (EntityLiving)event.getEntityLiving();
+            double maxDistance = PrimitiveMobsConfigSpecial.getCamouflageOverride()
+            ? Math.pow(PrimitiveMobsConfigSpecial.getCamouflageOverrideValue(), 2)
+            : Math.pow((living.getEntityAttribute(SharedMonsterAttributes.FOLLOW_RANGE).getAttributeValue() 
+                                    / PrimitiveMobsConfigSpecial.getCamouflageDivisorValue()), 2);
+            
+            if(PrimitiveMobsConfigSpecial.getCamouflageAttackerDeny())
+            {
+                if(PrimitiveMobsConfigSpecial.getCamouflageVictimDeny())
+                {
+			        if(living.getLastAttackedEntity() != player && living.getAttackingEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > maxDistance)
+			        {
+				        living.setAttackTarget(null);
+			        }
+			        else
+			        {
+				        living.setLastAttackedEntity(player);
+			        }                
+                }
+                else
+                {
+			        if(living.getLastAttackedEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > maxDistance)
+			        {
+				        living.setAttackTarget(null);
+			        }
+			        else
+			        {
+				        living.setLastAttackedEntity(player);
+			        }                       
+                }
+            } 
+            else 
+            {
+                if(PrimitiveMobsConfigSpecial.getCamouflageVictimDeny()) 
+                {
+			        if(living.getAttackingEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > maxDistance)
+			        {
+				        living.setAttackTarget(null);
+			        }
+			        else
+			        {
+				        living.setLastAttackedEntity(player);
+			        }                 
+                }
+                else 
+                {
+			        if(hasFullCamouflageArmor(player) && living.getDistanceSq(player) > maxDistance)
+			        {
+				        living.setAttackTarget(null);
+			        }
+			        else
+			        {
+				        living.setLastAttackedEntity(player);
+			        }             
+                }
+            }
+            
+
 			if(living.getLastAttackedEntity() != player && living.getAttackingEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > 36)
 			{
 				living.setAttackTarget(null);
@@ -337,9 +398,195 @@ public static class EntityEventHandler {
 			{
 				living.setLastAttackedEntity(player);
 			}
-		}
+		}     
 	}
-	
+
+/*
+//Ok so this didn't work 
+//and in retrospect i realize i want 
+//one event listener that can change based on 
+//"configanytime" anyways, i'm just keeping this for posterity
+    if(PrimitiveMobsConfigSpecial.getCamouflageOverride()) 
+    {
+        if(PrimitiveMobsConfigSpecial.getCamouflageAttackerDeny()) 
+        {
+            if(PrimitiveMobsConfigSpecial.getCamouflageVictimDeny()) 
+            {
+	            @SubscribeEvent
+	            public void onSetAttackTarget(LivingSetAttackTargetEvent event)
+	            {
+		            if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
+		            {
+			            EntityPlayer player = (EntityPlayer)event.getTarget();
+			            EntityLiving living = (EntityLiving)event.getEntityLiving();
+			            if(living.getLastAttackedEntity() != player && living.getAttackingEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > Math.pow(PrimitiveMobsConfigSpecial.getCamouflageOverrideValue(), 2))
+			            {
+				            living.setAttackTarget(null);
+			            }
+			            else
+			            {
+				            living.setLastAttackedEntity(player);
+			            }
+		            }
+	            }
+            }
+            else 
+            {
+	            @SubscribeEvent
+	            public void onSetAttackTarget(LivingSetAttackTargetEvent event)
+	            {
+		            if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
+		            {
+			            EntityPlayer player = (EntityPlayer)event.getTarget();
+			            EntityLiving living = (EntityLiving)event.getEntityLiving();
+			            if(living.getLastAttackedEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > Math.pow(PrimitiveMobsConfigSpecial.getCamouflageOverrideValue(), 2))
+			            {
+				            living.setAttackTarget(null);
+			            }
+			            else
+			            {
+				            living.setLastAttackedEntity(player);
+			            }
+		            }
+	            }
+            }
+        } 
+        else 
+        {
+            if(PrimitiveMobsConfigSpecial.getCamouflageVictimDeny()) 
+            {
+	            @SubscribeEvent
+	            public void onSetAttackTarget(LivingSetAttackTargetEvent event)
+	            {
+		            if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
+		            {
+			            EntityPlayer player = (EntityPlayer)event.getTarget();
+			            EntityLiving living = (EntityLiving)event.getEntityLiving();
+			            if(living.getAttackingEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > Math.pow(PrimitiveMobsConfigSpecial.getCamouflageOverrideValue(), 2))
+			            {
+				            living.setAttackTarget(null);
+			            }
+			            else
+			            {
+				            living.setLastAttackedEntity(player);
+			            }
+		            }
+	            }
+            }
+            else 
+            {
+	            @SubscribeEvent
+	            public void onSetAttackTarget(LivingSetAttackTargetEvent event)
+	            {
+		            if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
+		            {
+			            EntityPlayer player = (EntityPlayer)event.getTarget();
+			            EntityLiving living = (EntityLiving)event.getEntityLiving();
+			            if(hasFullCamouflageArmor(player) && living.getDistanceSq(player) > Math.pow(PrimitiveMobsConfigSpecial.getCamouflageOverrideValue(), 2))
+			            {
+				            living.setAttackTarget(null);
+			            }
+			            else
+			            {
+				            living.setLastAttackedEntity(player);
+			            }
+		            }
+	            }                
+            }        
+        }
+    } 
+    else 
+    {
+        if(PrimitiveMobsConfigSpecial.getCamouflageAttackerDeny()) 
+        {
+            if(PrimitiveMobsConfigSpecial.getCamouflageVictimDeny()) 
+            {
+	            @SubscribeEvent
+	            public void onSetAttackTarget(LivingSetAttackTargetEvent event)
+	            {
+		            if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
+		            {
+			            EntityPlayer player = (EntityPlayer)event.getTarget();
+			            EntityLiving living = (EntityLiving)event.getEntityLiving();
+			            if(living.getLastAttackedEntity() != player && living.getAttackingEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > Math.pow((entityLiving.getEntityAttribute(SharedMonsterAttributes.FOLLOW_RANGE).getAttributeValue() / PrimitiveMobsConfigSpecial.getCamouflageDivisorValue()), 2))
+			            {
+				            living.setAttackTarget(null);
+			            }
+			            else
+			            {
+				            living.setLastAttackedEntity(player);
+			            }
+		            }
+	            }
+            }
+            else 
+            {
+	            @SubscribeEvent
+	            public void onSetAttackTarget(LivingSetAttackTargetEvent event)
+	            {
+		            if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
+		            {
+			            EntityPlayer player = (EntityPlayer)event.getTarget();
+			            EntityLiving living = (EntityLiving)event.getEntityLiving();
+			            if(living.getLastAttackedEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > Math.pow((entityLiving.getEntityAttribute(SharedMonsterAttributes.FOLLOW_RANGE).getAttributeValue() / PrimitiveMobsConfigSpecial.getCamouflageDivisorValue()), 2))
+			            {
+				            living.setAttackTarget(null);
+			            }
+			            else
+			            {
+				            living.setLastAttackedEntity(player);
+			            }
+		            }
+	            }
+            }
+            }
+        } 
+        else 
+        {
+            if(PrimitiveMobsConfigSpecial.getCamouflageVictimDeny()) 
+            {
+	            @SubscribeEvent
+	            public void onSetAttackTarget(LivingSetAttackTargetEvent event)
+	            {
+		            if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
+		            {
+			            EntityPlayer player = (EntityPlayer)event.getTarget();
+			            EntityLiving living = (EntityLiving)event.getEntityLiving();
+			            if(living.getAttackingEntity() != player && hasFullCamouflageArmor(player) && living.getDistanceSq(player) > Math.pow((entityLiving.getEntityAttribute(SharedMonsterAttributes.FOLLOW_RANGE).getAttributeValue() / PrimitiveMobsConfigSpecial.getCamouflageDivisorValue()), 2))
+			            {
+				            living.setAttackTarget(null);
+			            }
+			            else
+			            {
+				            living.setLastAttackedEntity(player);
+			            }
+		            }
+	            }
+            }
+            else 
+            {
+	            @SubscribeEvent
+	            public void onSetAttackTarget(LivingSetAttackTargetEvent event)
+	            {
+		            if(event.getTarget() != null && event.getTarget() instanceof EntityPlayer && event.getEntityLiving() instanceof EntityLiving)
+		            {
+			            EntityPlayer player = (EntityPlayer)event.getTarget();
+			            EntityLiving living = (EntityLiving)event.getEntityLiving();
+			            if(hasFullCamouflageArmor(player) && living.getDistanceSq(player) > Math.pow((entityLiving.getEntityAttribute(SharedMonsterAttributes.FOLLOW_RANGE).getAttributeValue() / PrimitiveMobsConfigSpecial.getCamouflageDivisorValue()), 2))
+			            {
+				            living.setAttackTarget(null);
+			            }
+			            else
+			            {
+				            living.setLastAttackedEntity(player);
+			            }
+		            }
+	            }                
+            }        
+        }        
+    }
+*/
+
 	public static boolean hasFullCamouflageArmor(EntityPlayer player)
 	{
 		int amountOfPieces = 0;

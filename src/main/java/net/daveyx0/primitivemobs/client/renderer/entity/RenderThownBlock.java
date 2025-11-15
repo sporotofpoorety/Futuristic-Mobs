@@ -1,5 +1,6 @@
 package net.daveyx0.primitivemobs.client.renderer.entity;
 
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.entity.item.EntityThrownBlock;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
@@ -25,7 +26,7 @@ public class RenderThownBlock extends Render<EntityThrownBlock> {
     public RenderThownBlock(RenderManager renderManagerIn)
     {
         super(renderManagerIn);
-        this.shadowSize = 0.25F;
+        this.shadowSize = (float) (0.25F * PrimitiveMobsConfigSpecial.getTrollThrownScale());
     }
 
     /**

@@ -86,7 +86,8 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
 		int prio = 0;
         this.tasks.addTask(++prio, new EntityAISwimming(this));
         this.tasks.addTask(++prio, new EntityAIMoveTowardsRestriction(this, 1.0D));
-        this.tasks.addTask(++prio, new EntityAITrollagerAttacks(this, 1.25D, 2.5F, 20.0F));
+        this.tasks.addTask(++prio, new EntityAITrollagerAttacks(this, 1.25D,
+            (float) PrimitiveMobsConfigSpecial.getTrollMeleeDistance(), (float) PrimitiveMobsConfigSpecial.getTrollSmashDistance()));
         this.tasks.addTask(++prio, new EntityAIWander(this, 1.0D));
         this.tasks.addTask(++prio, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));
         this.tasks.addTask(++prio, new EntityAILookIdle(this));
@@ -304,7 +305,10 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
                 }
                 else
                 {
-                	this.setStone(true);
+                    if(PrimitiveMobsConfigSpecial.getTrollTurnsToStone()) 
+                    {
+                	    this.setStone(true);
+                    }
                 }
             }
             else
@@ -478,27 +482,32 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
 		    	distanceZ = distanceZ/length;
 		      }
 
+//Adjust to reach target more easily
 		    double addedHeight = 0D;
 		    if(target.posY > this.posY)
 		    {
-		    	addedHeight = 0.5D;
+		    	addedHeight = 1D;
 		    }
 		    else if(target.posY < this.posY)
 		    {
-		    	addedHeight = -0.5D;
+		    	addedHeight = -1.5D;
 		    }
 			double explosionX = this.posX + (distanceX * 2D);
 			double explosionZ = this.posZ + (distanceZ * 2D);
-			double explosionY = this.posY + addedHeight;
+//Configure explosion power and adjust up to prevent digging down
+			double explosionY = PrimitiveMobsConfigSpecial.getTrollDestructionPower() > 3F ? this.posY + this.getEyeHeight() + addedHeight + 1.5F + (float) (PrimitiveMobsConfigSpecial.getTrollDestructionPower() * 0.6) : this.posY + this.getEyeHeight() + addedHeight + 1.5F;
 			boolean flag = true;
 			if(!this.getEntityWorld().getGameRules().getBoolean("mobGriefing") || !PrimitiveMobsConfigSpecial.getTrollDestruction())
 			{
 				flag = false;
 			}
-			this.newExplosion(this, explosionX ,this.posY + this.getEyeHeight(), explosionZ, 3F, false, flag);
+//By calling on world should hopefully sync with client now
+			this.world.newExplosion(this, explosionX, explosionY, explosionZ, (float) PrimitiveMobsConfigSpecial.getTrollDestructionPower(), false, flag);
 			
 			//MMMessageRegistry.getNetwork().sendToAll(new MessageMMParticle(EnumParticleTypes.BLOCK_CRACK.getParticleID(), 50, (float)explosionX, (float)explosionY, (float)explosionZ, 0D,0D,0D, blockId));
-			MMMessageRegistry.getNetwork().sendToAll(new MessageMMParticle(EnumParticleTypes.EXPLOSION_LARGE.getParticleID(), 10, (float)explosionX, (float)explosionY, (float)explosionZ, 1D,0D,0D, 0));
+
+//Removing the multimob particles
+//			MMMessageRegistry.getNetwork().sendToAll(new MessageMMParticle(EnumParticleTypes.EXPLOSION_LARGE.getParticleID(), (10 * (int) Math.floor((PrimitiveMobsConfigSpecial.getTrollDestructionPower() / 3F))), (float)explosionX, (float)explosionY, (float)explosionZ, 1D,0D,0D, 0));
 			this.playSound(PrimitiveMobsSoundEvents.ENTITY_TROLLAGER_ATTACK, this.getSoundVolume(), ((this.getRNG().nextFloat() - this.getRNG().nextFloat()) * 0.2F + 1.0F) * 0.8F);
 			break;
 		}
@@ -525,7 +534,9 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
     {
         return (double)(this.width * 2F * this.width * 2F + attackTarget.width);
     }
-	
+
+//Why is this even here? I'll use the vanilla method
+/*	
     public Explosion newExplosion(@Nullable Entity entityIn, double x, double y, double z, float strength, boolean isFlaming, boolean isSmoking)
     {
         Explosion explosion = new Explosion(this.world, entityIn, x, y, z, strength, isFlaming, isSmoking);
@@ -534,6 +545,7 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
         explosion.doExplosionB(true);
         return explosion;
     }
+*/
 	
     public void setThrownBlock(BlockPos pos)
     {

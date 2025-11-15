@@ -148,5 +148,29 @@
         [
             "primitivemobs:block/squish"
         ]
+    },
+    "entity.creeper.annoyed":
+    {
+        "category": "neutral",
+        "sounds":
+        [
+            "primitivemobs:entity/creeper/annoyed"
+        ]
+    },
+    "entity.creeper.dizzy":
+    {
+        "category": "neutral",
+        "sounds":
+        [
+            "primitivemobs:entity/creeper/dizzy"
+        ]
+    },
+    "entity.creeper.nuke":
+    {
+        "category": "neutral",
+        "sounds":
+        [
+            "primitivemobs:entity/creeper/nuke"
+        ]
     }
 }

@@ -3,6 +3,7 @@ package net.daveyx0.primitivemobs.entity.monster;
 import javax.annotation.Nullable;
 
 import net.daveyx0.multimob.entity.IMultiMob;
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.minecraft.entity.EntityLiving;
 import net.minecraft.entity.EntityLivingBase;
@@ -15,6 +16,7 @@ import net.minecraft.entity.ai.EntityAIMoveTowardsRestriction;
 import net.minecraft.entity.ai.EntityAINearestAttackableTarget;
 import net.minecraft.entity.ai.EntityAIWander;
 import net.minecraft.entity.ai.EntityAIWatchClosest;
+import net.minecraft.entity.IEntityLivingData;
 import net.minecraft.entity.monster.EntityMob;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
@@ -24,6 +26,7 @@ import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.datafix.DataFixer;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -35,6 +38,16 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
     /** ticks until heightOffset is randomized */
     private int heightOffsetUpdateTime;
 
+    private int meleeCooldown;
+    private int meleeCooldownMax;
+    private double meleeDistanceMax;
+    private int chargeCooldown;
+    private int chargeCooldownMax;
+    private double chargeDistanceMax;
+    private boolean chargeDistanceIgnore;
+    private double chargePropelFactor;
+    private float chargeSpeedFactor;
+
     public EntityBlazingJuggernaut(World worldIn)
     {
         super(worldIn);
@@ -44,13 +57,23 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
         this.setPathPriority(PathNodeType.DAMAGE_FIRE, 0.0F);
         this.isImmuneToFire = true;
         this.experienceValue = 10;
+
+        this.meleeCooldown = 0;
+        this.meleeCooldownMax = PrimitiveMobsConfigSpecial.getBlazingJuggernautMeleeCooldownMax();
+        this.meleeDistanceMax = PrimitiveMobsConfigSpecial.getBlazingJuggernautMeleeDistanceMax();
+        this.chargeCooldown = 0;
+        this.chargeCooldownMax = PrimitiveMobsConfigSpecial.getBlazingJuggernautChargeCooldownMax();
+        this.chargeDistanceMax = PrimitiveMobsConfigSpecial.getBlazingJuggernautChargeDistanceMax();
+        this.chargeDistanceIgnore = PrimitiveMobsConfigSpecial.getBlazingJuggernautChargeDistanceIgnore();
+        this.chargePropelFactor = PrimitiveMobsConfigSpecial.getBlazingJuggernautChargePropelFactor();
+        this.chargeSpeedFactor = (float) PrimitiveMobsConfigSpecial.getBlazingJuggernautChargeSpeedFactor();
     }
     
     protected void applyEntityAttributes()
     {
         super.applyEntityAttributes();
         this.getEntityAttribute(SharedMonsterAttributes.ATTACK_DAMAGE).setBaseValue(5.0D);
-        this.getEntityAttribute(SharedMonsterAttributes.MOVEMENT_SPEED).setBaseValue(0.23000000417232513D);
+        this.getEntityAttribute(SharedMonsterAttributes.MOVEMENT_SPEED).setBaseValue(0.16);
         this.getEntityAttribute(SharedMonsterAttributes.FOLLOW_RANGE).setBaseValue(48.0D);
     }
 
@@ -61,7 +84,6 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
 
     protected void initEntityAI()
     {
-        this.tasks.addTask(4, new EntityBlazingJuggernaut.AIChargeAttack(this));
         this.tasks.addTask(5, new EntityAIMoveTowardsRestriction(this, 1.0D));
         this.tasks.addTask(7, new EntityAIWander(this, 1.0D));
         this.tasks.addTask(8, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));
@@ -69,6 +91,17 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
         this.targetTasks.addTask(1, new EntityAIHurtByTarget(this, true, new Class[0]));
         this.targetTasks.addTask(2, new EntityAINearestAttackableTarget(this, EntityPlayer.class, true));
     }
+
+    @Override public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
+    {
+        super.onInitialSpawn(difficulty, livingdata);
+
+        this.tasks.addTask(4, new EntityBlazingJuggernaut.EntityAIAerialChargeMovement(this, this.meleeCooldown, this.meleeCooldownMax,
+        this.meleeDistanceMax, this.chargeCooldown, this.chargeCooldownMax, this.chargeDistanceMax, 
+        this.chargeDistanceIgnore, this.chargePropelFactor, this.chargeSpeedFactor));
+
+        return livingdata;
+    } 
 
     /**
      * returns if this entity triggers Block.onEntityWalking on the blocks they walk on. used for spiders and wolves to
@@ -161,10 +194,17 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
 
         EntityLivingBase entitylivingbase = this.getAttackTarget();
 
-        if (entitylivingbase != null && entitylivingbase.posY + (double)entitylivingbase.getEyeHeight() > this.posY + (double)this.getEyeHeight() + (double)this.heightOffset)
+//If has target
+        if (entitylivingbase != null)
         {
-            this.motionY += (0.30000001192092896D - this.motionY) * 0.30000001192092896D;
+//Become airborne
             this.isAirBorne = true;
+//If target is above
+            if(entitylivingbase.posY + (double)entitylivingbase.getEyeHeight() > this.posY + (double)this.getEyeHeight() + (double)this.heightOffset)
+            {
+//Go up
+                this.motionY += (0.30000001192092896D - this.motionY) * 0.30000001192092896D;
+            }
         }
 
         super.updateAITasks();
@@ -197,15 +237,34 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
         return true;
     }
     
-    static class AIChargeAttack extends EntityAIBase
+    static class EntityAIAerialChargeMovement extends EntityAIBase
     {
         private final EntityBlazingJuggernaut blaze;
-        private int attackCooldown;
+        private int meleeCooldown;
+        private int meleeCooldownMax;
+        private double meleeDistanceMaxSq;
+        private int chargeCooldown;
+        private int chargeCooldownMax;
+        private double chargeDistanceMaxSq;
+        private boolean chargeDistanceIgnore;
+        private double chargePropelFactor;
+        private float chargeSpeedFactor;
 
-        public AIChargeAttack(EntityBlazingJuggernaut blazeIn)
+        public EntityAIAerialChargeMovement(EntityBlazingJuggernaut blazeIn, int meleeCooldown, int meleeCooldownMax, 
+        double meleeDistanceMaxSq, int chargeCooldown, int chargeCooldownMax, double chargeDistanceMaxSq, 
+        boolean chargeDistanceIgnore, double chargePropelFactor, float chargeSpeedFactor)
         {
             this.blaze = blazeIn;
             this.setMutexBits(3);
+            this.meleeCooldown = meleeCooldown;
+            this.meleeCooldownMax = meleeCooldownMax;
+            this.meleeDistanceMaxSq = meleeDistanceMaxSq;
+            this.chargeCooldown = chargeCooldown;
+            this.chargeCooldownMax = chargeCooldownMax;
+            this.chargeDistanceMaxSq = chargeDistanceMaxSq;
+            this.chargeDistanceIgnore = chargeDistanceIgnore;
+            this.chargePropelFactor = chargePropelFactor;
+            this.chargeSpeedFactor = chargeSpeedFactor;
         }
 
         /**
@@ -222,7 +281,7 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
          */
         public void startExecuting()
         {
-            this.attackCooldown = 0;
+            this.meleeCooldown = 0;
         }
 
         /**
@@ -241,12 +300,13 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
             EntityLivingBase entitylivingbase = this.blaze.getAttackTarget();
             double d0 = this.blaze.getDistanceSq(entitylivingbase);
 
-            ++this.attackCooldown;
-            if (d0 < 5.0D)
+            ++this.meleeCooldown;
+            ++this.chargeCooldown;
+            if (d0 < this.meleeDistanceMaxSq)
             {
-                if (this.attackCooldown > 10)
+                if (this.meleeCooldown > this.meleeCooldownMax)
                 {
-                    this.attackCooldown = 0;
+                    this.meleeCooldown = 0;
                     this.blaze.attackEntityAsMob(entitylivingbase);
                 }
 
@@ -257,24 +317,25 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
                 	this.blaze.motionY -= 0.1D;
                 }
             }
-            else if (d0 < 30.0D)
+            else if (this.chargeDistanceIgnore || d0 < (this.chargeDistanceMaxSq))
             {
                 double d1 = entitylivingbase.posX - this.blaze.posX;
-                double d2 = entitylivingbase.getEntityBoundingBox().minY + (double)(entitylivingbase.height / 2.0F) - (this.blaze.posY + (double)(this.blaze.height / 2.0F));
+//              double d2 = entitylivingbase.getEntityBoundingBox().minY + (double)(entitylivingbase.height / 2.0F) - (this.blaze.posY + (double)(this.blaze.height / 2.0F));
+                double d2 = entitylivingbase.getEntityBoundingBox().maxY - (this.blaze.posY + (double)(this.blaze.height / 2.0F));
                 double d3 = entitylivingbase.posZ - this.blaze.posZ;
 
-                    if (this.attackCooldown > 5)
+                    if (this.chargeCooldown > this.chargeCooldownMax)
                     {
                         //this.getEntityWorld().playAuxSFXAtEntity((EntityPlayer)null, 1009, (int)this.posX, (int)this.posY, (int)this.posZ, 0);
                         
-                        this.blaze.motionX += (Math.signum(d1) * 0.5D - this.blaze.motionX) * 0.8D;
-                        this.blaze.motionY += (Math.signum(d2) * 0.699999988079071D - this.blaze.motionY) * 0.8D;
-                        this.blaze.motionZ += (Math.signum(d3) * 0.5D - this.blaze.motionZ) * 0.8D;
-                        float f = (float)(Math.atan2(this.blaze.motionZ, this.blaze.motionX) * 180.0D / Math.PI) - 90.0F;
+                        this.blaze.motionX += (Math.signum(d1) * 0.5D - this.blaze.motionX) * this.chargePropelFactor;
+                        this.blaze.motionY += (Math.signum(d2) * 0.699999988079071D - this.blaze.motionY) * this.chargePropelFactor;
+                        this.blaze.motionZ += (Math.signum(d3) * 0.5D - this.blaze.motionZ) * this.chargePropelFactor;
+                        //float f = (float)(Math.atan2(this.blaze.motionZ, this.blaze.motionX) * 180.0D / Math.PI) - 90.0F;
                         //float f1 = MathHelper.wrapDegrees(f - this.blaze.rotationYaw);
-                        this.blaze.moveForward = 1.5F;;
+                        this.blaze.moveForward = this.chargeSpeedFactor;
                         
-                        attackCooldown = 0;
+                        this.chargeCooldown = 0;
                     }
 
                 this.blaze.getLookHelper().setLookPositionWithEntity(entitylivingbase, 10.0F, 10.0F);

@@ -137,6 +137,8 @@ public class EntityGroveSprite extends EntityCreature implements IMultiMobPassiv
         return super.onInitialSpawn(difficulty, livingdata);
     }
 	
+//I think this is where it searches for what 
+//tree it will assign itself to? Will inquire soon
     private void determineLogAndLeaves() {
 
     	Object[] tree = null;
@@ -148,6 +150,12 @@ public class EntityGroveSprite extends EntityCreature implements IMultiMobPassiv
     	
     	if(tree == null || tree.length == 0)
     	{
+//Ok so it searches for a tree
+//using a multimob function, not primitive mobs, interesting
+
+//I looked it up, the function 
+//constructs and returns a tree block object,
+//and it does support any instance of the base block classes
     		tree = EntityUtil.searchTree(this, 10);
     	}
     	
@@ -217,6 +225,8 @@ public class EntityGroveSprite extends EntityCreature implements IMultiMobPassiv
    			changedColor = true;
    			if(!this.isCinderSprite())
    			{
+//I think this part is where the mob changes
+//its color based on the leaves and logs it's assigned to, will inquire
    	   			setLeavesRGB(getColor(this.getEntityWorld(), this.getLeaves(), this.getLeavesPos(), null));
    	   			setLogRGB(getColor(this.getEntityWorld(), this.getLog(), null, EnumFacing.WEST));
    	   			setLogTopRGB(getColor(this.getEntityWorld(), this.getLog(), null, null));
