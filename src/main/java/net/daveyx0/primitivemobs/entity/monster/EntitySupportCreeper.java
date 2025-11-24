@@ -12,6 +12,7 @@ import net.daveyx0.multimob.common.capabilities.ITameableEntity;
 import net.daveyx0.multimob.util.EntityUtil;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.EnumCreatureType;
@@ -31,6 +32,10 @@ import net.minecraft.entity.monster.EntityMob;
 import net.minecraft.entity.passive.EntityOcelot;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.MobEffects;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagInt;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagString;
 import net.minecraft.potion.Potion;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.ResourceLocation;
@@ -48,6 +53,7 @@ public class EntitySupportCreeper extends EntityPrimitiveCreeper {
 
 	public EntitySupportCreeper(World worldIn) {
 		super(worldIn);
+
 //Buff ids provided by user
         buffIdList = new ArrayList<>(Arrays.asList(PrimitiveMobsConfigSpecial.getSupportCreeperBuffList()));
 //Conversion of buff Id list to Potion object list
@@ -61,6 +67,8 @@ public class EntitySupportCreeper extends EntityPrimitiveCreeper {
         buffStrengthList = new ArrayList<>(Arrays.stream(PrimitiveMobsConfigSpecial.getSupportCreeperBuffStrengthList()).boxed().collect(Collectors.toList()));
 //Strength of buffs when powered
         buffStrengthListPowered = new ArrayList<>(Arrays.stream(PrimitiveMobsConfigSpecial.getSupportCreeperBuffStrengthListPowered()).boxed().collect(Collectors.toList()));
+
+        this.tasks.addTask(2, new EntitySupportCreeper.EntityAIBuffMob(this, this.buffObjectList, this.buffLengthList, this.buffStrengthList, this.buffStrengthListPowered));  
 	}
 	
     protected void initEntityAI()
@@ -74,11 +82,140 @@ public class EntitySupportCreeper extends EntityPrimitiveCreeper {
         this.tasks.addTask(6, new EntityAILookIdle(this));
     }
 
+/*
     @Nullable
     public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, @Nullable IEntityLivingData livingdata)
-    {
-        this.tasks.addTask(2, new EntitySupportCreeper.EntityAIBuffMob(this, this.buffObjectList, this.buffLengthList, this.buffStrengthList, this.buffStrengthListPowered));        	
+    {      	
         return super.onInitialSpawn(difficulty, livingdata);
+    }
+*/
+
+	  /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+
+//Preserves field values including assigned by NBT
+
+//Loop through field lists and append their values to NBT tag lists
+        NBTTagList idList = new NBTTagList();
+        for (String id : this.buffIdList) 
+        {
+            idList.appendTag(new NBTTagString(id));
+        }
+        compound.setTag("BuffIds", idList);
+
+//Loop through field lists and append their values to NBT tag lists
+        NBTTagList lengthList = new NBTTagList();
+        for (int length : this.buffLengthList)
+        {
+            lengthList.appendTag(new NBTTagInt(length));
+        }
+        compound.setTag("BuffLengths", lengthList);
+
+//Loop through field lists and append their values to NBT tag lists
+        NBTTagList strengthList = new NBTTagList();
+        for (int strength : this.buffStrengthList)
+        {
+            strengthList.appendTag(new NBTTagInt(strength));
+        }
+        compound.setTag("BuffStrengths", strengthList);
+
+//Loop through field lists and append their values to NBT tag lists
+        NBTTagList strengthListPowered = new NBTTagList();
+        for (int strengthPowered : this.buffStrengthListPowered)
+        {
+            strengthListPowered.appendTag(new NBTTagInt(strengthPowered));
+        }
+        compound.setTag("BuffStrengthsPowered", strengthListPowered);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+
+//If corresponding NBT present
+        if (compound.hasKey("BuffIds"))
+        {
+//Clear corresponding field lists
+            buffIdList.clear();
+            buffObjectList.clear(); 
+//8 is for strings
+//Get NBT list
+            NBTTagList idList = compound.getTagList("BuffIds", 8);
+            for (int i = 0; i < idList.tagCount(); i++) 
+            {
+//Get each buff ID
+                String id = idList.getStringTagAt(i);
+//Fill buff ID list
+                buffIdList.add(id);
+//Buff object list too
+                buffObjectList.add(ForgeRegistries.POTIONS.getValue(new ResourceLocation(id)));
+            }
+        }
+
+//If corresponding NBT present
+        if (compound.hasKey("BuffLengths"))
+        {
+//Clear corresponding field list
+            buffLengthList.clear();
+//3 is for ints
+//Get NBT list
+            NBTTagList lengthList = compound.getTagList("BuffLengths", 3);
+            for (int i = 0; i < lengthList.tagCount(); i++)
+            {
+//Fill field list
+                buffLengthList.add(lengthList.getIntAt(i));
+            }
+        }
+
+//If corresponding NBT present
+        if (compound.hasKey("BuffStrengths"))
+        {
+//Clear corresponding field list
+            buffStrengthList.clear();
+//3 is for ints
+//Get NBT list
+            NBTTagList strengthList = compound.getTagList("BuffStrengths", 3);
+            for (int i = 0; i < strengthList.tagCount(); i++)
+            {
+//Fill field list
+                buffStrengthList.add(strengthList.getIntAt(i));
+            }
+        }
+
+//If corresponding NBT present
+        if (compound.hasKey("BuffStrengthsPowered"))
+        {
+//Clear corresponding field list
+            buffStrengthListPowered.clear();
+//3 is for ints
+//Get NBT list
+            NBTTagList poweredList = compound.getTagList("BuffStrengthsPowered", 3);
+            for (int i = 0; i < poweredList.tagCount(); i++)
+            {
+//Fill field list
+                buffStrengthListPowered.add(poweredList.getIntAt(i));
+            }
+        }
+
+//Add task if absent
+        if(!TaskUtils.mobHasTask(this, EntityAIBuffMob.class))
+        {
+            this.tasks.addTask(2, new EntitySupportCreeper.EntityAIBuffMob(this, this.buffObjectList, this.buffLengthList, this.buffStrengthList, this.buffStrengthListPowered));   
+        }
+//If task is here remove then reassign based on NBT (can be used to overwrite configs and make custom variants)
+        else
+        {
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAIBuffMob.class);
+
+            this.tasks.addTask(2, new EntitySupportCreeper.EntityAIBuffMob(this, this.buffObjectList, this.buffLengthList, this.buffStrengthList, this.buffStrengthListPowered));         
+        }
     }
     
     protected void applyEntityAttributes()

@@ -26,7 +26,6 @@ public class PrimitiveMobsLootTables {
 	
 	//Special entity loot
 	public static final ResourceLocation HAUNTEDTOOL_SPAWN = new ResourceLocation(PrimitiveMobsReference.MODID + ":" + "entities/special/haunted_tool");
-	public static final ResourceLocation TREASURESLIME_SPAWN = new ResourceLocation(PrimitiveMobsReference.MODID + ":" + "entities/special/treasure_slime");
 
     public static void registerLootTables() {
     	LootTableList.register(ENTITIES_CHAMELEON);
@@ -47,7 +46,6 @@ public class PrimitiveMobsLootTables {
     	LootTableList.register(MIMIC_TRAP);
     	
     	LootTableList.register(HAUNTEDTOOL_SPAWN);
-    	LootTableList.register(TREASURESLIME_SPAWN);
     }
 
 }

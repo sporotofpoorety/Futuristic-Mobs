@@ -9,11 +9,13 @@ import net.daveyx0.multimob.entity.IMultiMob;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityCreature;
 import net.minecraft.entity.EntityLiving;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.EnumCreatureType;
+import net.minecraft.entity.IEntityLivingData;
 import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.ai.EntityAIAttackMelee;
 import net.minecraft.entity.ai.EntityAIHurtByTarget;
@@ -21,12 +23,14 @@ import net.minecraft.entity.ai.EntityAINearestAttackableTarget;
 import net.minecraft.entity.ai.EntityMoveHelper;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.World;
 
 public class EntityHarpy extends EntityMMFlyingMob implements IMultiMob {
@@ -34,7 +38,7 @@ public class EntityHarpy extends EntityMMFlyingMob implements IMultiMob {
     protected double harpyAttackDamage;
     protected double harpyFlyingSpeed;
     protected double harpyMoveSpeed;
-
+    protected double harpyLiftingSpeed;
     protected int harpyReleaseTimeNeeded;
     protected double harpyGrabbingMinimumReleaseDamage;
     protected int harpyGrabbingDamagedTimesNeeded;
@@ -46,25 +50,83 @@ public class EntityHarpy extends EntityMMFlyingMob implements IMultiMob {
 		super(worldIn);
 		this.setSize(0.8f, 1f);
 		this.moveHelper = new EntityHarpyFlyHelper(this);
+
+        harpyReleaseTime = 0;
+        harpyGrabbingDamagedTimes = 0;
+
         harpyAttackDamage = PrimitiveMobsConfigSpecial.getHarpyAttackDamage();
         harpyFlyingSpeed = PrimitiveMobsConfigSpecial.getHarpyFlyingSpeed();
         harpyMoveSpeed = PrimitiveMobsConfigSpecial.getHarpyMoveSpeed();
-
+        harpyLiftingSpeed = PrimitiveMobsConfigSpecial.getHarpyLiftingSpeed();
         harpyReleaseTimeNeeded = PrimitiveMobsConfigSpecial.getHarpyReleaseTimeNeeded();
         harpyGrabbingMinimumReleaseDamage = PrimitiveMobsConfigSpecial.getHarpyGrabbingMinimumReleaseDamage();
         harpyGrabbingDamagedTimesNeeded = PrimitiveMobsConfigSpecial.getHarpyGrabbingDamagedTimesNeeded();
 
-        harpyReleaseTime = 0;
-        harpyGrabbingDamagedTimes = 0;
+        this.tasks.addTask(1, new AIHarpyLift(this, harpyLiftingSpeed, false));
 	}
 
     protected void initEntityAI()
     {
     	super.initEntityAI();
-        this.tasks.addTask(1, new AIHarpyLift(this, 1.5D, false));
         int attackPrio = 1;
         this.targetTasks.addTask(++attackPrio, new EntityAIHurtByTarget(this, false));
         this.targetTasks.addTask(++attackPrio, new EntityAINearestAttackableTarget(this, EntityPlayer.class, true));
+    }
+
+    @Override 
+    public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
+    {
+        super.onInitialSpawn(difficulty, livingdata);
+
+        return livingdata;
+    }
+
+	  /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        compound.setDouble("HarpyAttackDamage", harpyAttackDamage);
+        compound.setDouble("HarpyFlyingSpeed", harpyFlyingSpeed);
+        compound.setDouble("HarpyMoveSpeed", harpyMoveSpeed);
+        compound.setDouble("HarpyLiftingSpeed", harpyLiftingSpeed);
+        compound.setInteger("HarpyReleaseTimeNeeded", harpyReleaseTimeNeeded);
+        compound.setDouble("HarpyGrabbingMinimumReleaseDamage", harpyGrabbingMinimumReleaseDamage);
+        compound.setInteger("HarpyGrabbingDamagedTimesNeeded", harpyGrabbingDamagedTimesNeeded);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        if (compound.hasKey("HarpyAttackDamage")) { this.harpyAttackDamage = compound.getDouble("HarpyAttackDamage"); }
+        if (compound.hasKey("HarpyFlyingSpeed")) { this.harpyFlyingSpeed = compound.getDouble("HarpyFlyingSpeed"); }
+        if (compound.hasKey("HarpyMoveSpeed")) { this.harpyMoveSpeed = compound.getDouble("HarpyMoveSpeed"); }
+        if (compound.hasKey("HarpyLiftingSpeed")) { this.harpyLiftingSpeed = compound.getDouble("HarpyLiftingSpeed"); }
+        if (compound.hasKey("HarpyReleaseTimeNeeded")) { this.harpyReleaseTimeNeeded = compound.getInteger("HarpyReleaseTimeNeeded"); }
+        if (compound.hasKey("HarpyGrabbingMinimumReleaseDamage")) { this.harpyGrabbingMinimumReleaseDamage = compound.getDouble("HarpyGrabbingMinimumReleaseDamage"); }
+        if (compound.hasKey("HarpyGrabbingDamagedTimesNeeded")) { this.harpyGrabbingDamagedTimesNeeded = compound.getInteger("HarpyGrabbingDamagedTimesNeeded"); }
+
+//Add task if absent
+        if(!TaskUtils.mobHasTask(this, AIHarpyLift.class))
+        {
+            this.tasks.addTask(1, new AIHarpyLift(this, this.harpyLiftingSpeed, false));
+        }
+//If task is here remove then reassign based on NBT (can be used to overwrite configs and make custom variants)
+        else
+        {
+            TaskUtils.mobRemoveTaskIfPresent(this, AIHarpyLift.class);
+
+            this.tasks.addTask(1, new AIHarpyLift(this, this.harpyLiftingSpeed, false));
+        }
+
     }
     
     protected void applyEntityAttributes()

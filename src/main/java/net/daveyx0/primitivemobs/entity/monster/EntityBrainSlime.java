@@ -12,6 +12,7 @@ import net.daveyx0.multimob.entity.IMultiMob;
 import net.daveyx0.multimob.message.MMMessageRegistry;
 import net.daveyx0.multimob.message.MessageMMParticle;
 import net.daveyx0.multimob.util.EntityUtil;
+import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
 import net.minecraft.block.Block;
 import net.minecraft.entity.Entity;
@@ -62,6 +63,8 @@ public class EntityBrainSlime extends EntitySlime implements IMultiMob {
 	public int maxStack;
 	private boolean checkedAI = false;
 	private final EntityAIFindEntityNearest hostilityAI = new EntityAIFindEntityNearest(this, EntityAnimal.class);
+
+    protected static boolean ignoresHelmets;
 	
 	private static final DataParameter<Integer> SATURATION = EntityDataManager.<Integer>createKey(EntityBrainSlime.class, DataSerializers.VARINT);
 	private static final DataParameter<Integer> ATTACK_DELAY = EntityDataManager.<Integer>createKey(EntityBrainSlime.class, DataSerializers.VARINT);
@@ -75,6 +78,8 @@ public class EntityBrainSlime extends EntitySlime implements IMultiMob {
 	    suckingc = 0.0F;
 	    suckingh = 1.0F;
 	    maxStack = 10;
+
+        this.ignoresHelmets = PrimitiveMobsConfigSpecial.getBrainSlimeIgnoresHelmets();
 	}
 
 	
@@ -106,7 +111,67 @@ public class EntityBrainSlime extends EntitySlime implements IMultiMob {
             this.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(2.0);
             this.setHealth(this.getMaxHealth());
         }
+
         return livingdata;
+    }
+
+ /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+        compound.setInteger("CurrentsAttackDelay", this.getAttackDelay());
+        compound.setInteger("Saturation", this.getSaturation());
+        
+        if (this.getVictimId() == null)
+        {
+            compound.setString("VictimUUID", "");
+        }
+        else
+        {
+            compound.setString("VictimUUID", this.getVictimId().toString());
+        }
+
+//Preserves field values including assigned by NBT
+        compound.setBoolean("IgnoresHelmets", ignoresHelmets);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+        this.setAttackDelay(compound.getInteger("CurrentAttackDelay"));
+        this.setSaturation(compound.getInteger("Saturation"));
+        
+        String s;
+
+        if (compound.hasKey("VictimUUID", 8))
+        {
+            s = compound.getString("VictimUUID");
+        }
+        else
+        {
+            String s1 = compound.getString("Victim");
+            s = PreYggdrasilConverter.convertMobOwnerIfNeeded(this.getServer(), s1);
+        }
+
+        if (!s.isEmpty())
+        {
+            try
+            {
+                this.setVictimId(UUID.fromString(s));
+            }
+            catch (Throwable var4)
+            {
+            }
+        }
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        if (compound.hasKey("IgnoresHelmets")) { this.ignoresHelmets = compound.getBoolean("IgnoresHelmets"); }
+        
     }
 	
 	public void onUpdate()
@@ -297,7 +362,7 @@ public class EntityBrainSlime extends EntitySlime implements IMultiMob {
 		ItemStack stack = base.getItemStackFromSlot(EntityEquipmentSlot.HEAD);
 		int damage = (int)this.getAttackStrength();
 		
-		if(!stack.isEmpty() && stack.getItem().isDamageable() && stack.isItemStackDamageable())
+		if(!this.ignoresHelmets && !stack.isEmpty() && stack.getItem().isDamageable() && stack.isItemStackDamageable())
 		{
 			if (stack.getItem() instanceof ISpecialArmor)
 			{
@@ -666,59 +731,6 @@ public class EntityBrainSlime extends EntitySlime implements IMultiMob {
 	    public int getSaturation()
 	    {
 	        return ((Integer)this.getDataManager().get(SATURATION)).intValue();
-	    }
-	 
-	 /**
-	     * (abstract) Protected helper method to write subclass entity data to NBT.
-	     */
-	    public void writeEntityToNBT(NBTTagCompound compound)
-	    {
-	        super.writeEntityToNBT(compound);
-	        compound.setInteger("CurrentsAttackDelay", this.getAttackDelay());
-	        compound.setInteger("Saturation", this.getSaturation());
-	        
-	        if (this.getVictimId() == null)
-	        {
-	            compound.setString("VictimUUID", "");
-	        }
-	        else
-	        {
-	            compound.setString("VictimUUID", this.getVictimId().toString());
-	        }
-	    }
-
-	    /**
-	     * (abstract) Protected helper method to read subclass entity data from NBT.
-	     */
-	    public void readEntityFromNBT(NBTTagCompound compound)
-	    {
-	        super.readEntityFromNBT(compound);
-	        this.setAttackDelay(compound.getInteger("CurrentAttackDelay"));
-	        this.setSaturation(compound.getInteger("Saturation"));
-	        
-	        String s;
-
-	        if (compound.hasKey("VictimUUID", 8))
-	        {
-	            s = compound.getString("VictimUUID");
-	        }
-	        else
-	        {
-	            String s1 = compound.getString("Victim");
-	            s = PreYggdrasilConverter.convertMobOwnerIfNeeded(this.getServer(), s1);
-	        }
-
-	        if (!s.isEmpty())
-	        {
-	            try
-	            {
-	                this.setVictimId(UUID.fromString(s));
-	            }
-	            catch (Throwable var4)
-	            {
-	            }
-	        }
-
 	    }
 	    
 	    @Nullable

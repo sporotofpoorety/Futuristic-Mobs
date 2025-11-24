@@ -1,5 +1,10 @@
 package net.daveyx0.primitivemobs.entity.monster;
 
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import net.daveyx0.multimob.client.particle.MMParticles;
@@ -7,7 +12,8 @@ import net.daveyx0.multimob.entity.IMultiMob;
 import net.daveyx0.multimob.util.ColorUtil;
 import net.daveyx0.multimob.util.EntityUtil;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
-import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
+import net.daveyx0.primitivemobs.core.PrimitiveMobsItemIdsToItemStacks;
+import net.daveyx0.primitivemobs.core.PrimitiveMobsRandomWeightedItem;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
@@ -44,6 +50,10 @@ public class EntityTreasureSlime extends EntityTameableSlime implements IMultiMo
 	
 	private ItemStack currentItem;
 	private boolean wasOnGround;
+
+    public ArrayList<String> lootSpawnItems = new ArrayList<>();
+    public ArrayList<Integer> lootSpawnItemWeights = new ArrayList<>();
+    public ArrayList<ItemStack> lootSpawnItemStacks = new ArrayList<>();
 	
 	public EntityTreasureSlime(World worldIn) {
 		super(worldIn);
@@ -72,9 +82,21 @@ public class EntityTreasureSlime extends EntityTameableSlime implements IMultiMo
     	
     	if(!this.isTamed() && chance < 100 && (chance <= 0 || rand.nextInt(100/chance) != 0))
     	{
-    		while(this.getHeldItemMainhand().isEmpty() && !getEntityWorld().isRemote)
+//Item Ids converted from array to list
+        	lootSpawnItems = new ArrayList<>(Arrays.asList(PrimitiveMobsConfigSpecial.getTreasureSlimeSpawnLoot()));
+//Turn the item Id list into an ItemStack list
+            lootSpawnItemStacks = PrimitiveMobsItemIdsToItemStacks.itemIdsToItemStacks(lootSpawnItems);
+//My first time using streams, still need to understand them better  
+            lootSpawnItemWeights = new ArrayList<>(Arrays.stream(PrimitiveMobsConfigSpecial.getTreasureSlimeSpawnLootWeights()).boxed().collect(Collectors.toList()));
+
+    		if(this.getHeldItemMainhand().isEmpty() && !getEntityWorld().isRemote)
     		{
-    			this.setItemStackToSlot(EntityEquipmentSlot.MAINHAND, EntityUtil.getCustomLootItem(this, this.getSpawnLootTable(), new ItemStack(Items.SLIME_BALL)));
+                ItemStack heldItem = PrimitiveMobsRandomWeightedItem.getRandomWeightedItem(lootSpawnItemStacks, lootSpawnItemWeights);
+                if(heldItem == null)
+                {
+                    heldItem = ItemStack.EMPTY;                
+                }
+    			this.setItemStackToSlot(EntityEquipmentSlot.MAINHAND, heldItem);
     		}
     	}
     		
@@ -266,12 +288,6 @@ public class EntityTreasureSlime extends EntityTameableSlime implements IMultiMo
     protected ResourceLocation getLootTable()
     {
         return null;
-    }
-    
-    @Nullable
-    protected ResourceLocation getSpawnLootTable()
-    {
-        return PrimitiveMobsLootTables.TREASURESLIME_SPAWN;
     }
     
     /**

@@ -23,7 +23,6 @@ import net.daveyx0.primitivemobs.client.renderer.entity.RenderPrimitiveTNTPrimed
 import net.daveyx0.primitivemobs.client.renderer.entity.RenderSheepman;
 import net.daveyx0.primitivemobs.client.renderer.entity.RenderSkeletonWarrior;
 import net.daveyx0.primitivemobs.client.renderer.entity.RenderThownBlock;
-import net.daveyx0.primitivemobs.client.renderer.entity.RenderTravelingMerchant;
 import net.daveyx0.primitivemobs.client.renderer.entity.RenderTreasureSlime;
 import net.daveyx0.primitivemobs.client.renderer.entity.RenderTrollager;
 import net.daveyx0.primitivemobs.client.renderer.entity.RenderVoidEye;
@@ -57,7 +56,6 @@ import net.daveyx0.primitivemobs.entity.passive.EntityFilchLizard;
 import net.daveyx0.primitivemobs.entity.passive.EntityGroveSprite;
 import net.daveyx0.primitivemobs.entity.passive.EntityLostMiner;
 import net.daveyx0.primitivemobs.entity.passive.EntitySheepman;
-import net.daveyx0.primitivemobs.entity.passive.EntityTravelingMerchant;
 import net.minecraftforge.fml.client.registry.RenderingRegistry;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -86,7 +84,6 @@ public class PrimitiveMobsEntityRegistry extends MMEntityRegistry{
 	    	addEntities(EntityBabySpider.class, "baby_spider", ++id, 0xB59468, 11013646, PrimitiveMobsConfigMobs.enableSpiderFamily);
 	    	addEntities(EntityTrollager.class, "trollager", ++id, 0x56845D, 0x35251F, PrimitiveMobsConfigMobs.enableTrollager);
 	    	addEntities(EntityLostMiner.class, "lost_miner", ++id, 0x6C3626, 0xBD8B72, PrimitiveMobsConfigMobs.enableLostMiner);
-	    	addEntities(EntityTravelingMerchant.class, "traveling_merchant", ++id, 0x606051, 0xBD8B72, PrimitiveMobsConfigMobs.enableMerchant);
 	    	addEntities(EntityDodo.class, "dodo", ++id, 0x725643, 0xBCA18C, PrimitiveMobsConfigMobs.enableDodo);
 	    	addEntities(EntityMimic.class, "mimic", ++id, 0xAB792D, 0x2A251D, PrimitiveMobsConfigMobs.enableMimic);
 	    	addEntities(EntitySheepman.class, "sheepman", ++id, 0x262626, 0xB39680, PrimitiveMobsConfigMobs.enableSheepman);
@@ -122,7 +119,6 @@ public class PrimitiveMobsEntityRegistry extends MMEntityRegistry{
 	    	RenderingRegistry.registerEntityRenderingHandler(EntityBabySpider.class, RenderBabySpider::new);
 	    	RenderingRegistry.registerEntityRenderingHandler(EntityTrollager.class, RenderTrollager::new);
 	    	RenderingRegistry.registerEntityRenderingHandler(EntityLostMiner.class, RenderLostMiner::new);
-	    	RenderingRegistry.registerEntityRenderingHandler(EntityTravelingMerchant.class, RenderTravelingMerchant::new);
 	    	RenderingRegistry.registerEntityRenderingHandler(EntityDodo.class, RenderDodo::new);
 	    	RenderingRegistry.registerEntityRenderingHandler(EntityMimic.class, RenderMimic::new);
 	    	RenderingRegistry.registerEntityRenderingHandler(EntitySheepman.class, RenderSheepman::new);

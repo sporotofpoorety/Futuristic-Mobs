@@ -10,6 +10,7 @@ import net.daveyx0.multimob.entity.IMultiMob;
 import net.daveyx0.multimob.util.EntityUtil;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.daveyx0.primitivemobs.entity.ai.EntityAICreeperSwellSpecial;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
@@ -52,7 +53,6 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
 	protected float creeperSpecialExplosionRadius;
     private boolean creeperSpecialEnabled;
     private int prepareTicks;
-    private boolean prepareStarted;
     private double specialStartSpeed;
     private double specialCurrentSpeed;
     private double specialAcceleration; 
@@ -68,6 +68,9 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
         setCreeperPreparing(false);
         setCreeperHoming(false);
 
+        prepareTicks = 0;
+        specialHomingTicksStart = 0;
+
 //New special attack logic fields i added
         explosionRadius = (float) PrimitiveMobsConfigSpecial.getRocketCreeperExplosionPower();
         creeperSpecialEnabled = PrimitiveMobsConfigSpecial.getRocketCreeperSpecialEnabled();
@@ -80,18 +83,38 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
         creeperSpecialIgnitedTimeMax = PrimitiveMobsConfigSpecial.getRocketCreeperSpecialIgnitedTimeMax();
         creeperSpecialInterruptedDamage = (float) PrimitiveMobsConfigSpecial.getRocketCreeperSpecialInterruptedDamage();
         creeperSpecialInterruptedMax = PrimitiveMobsConfigSpecial.getRocketCreeperSpecialInterruptedMax();
-        prepareStarted = false;
-        prepareTicks = 0;
         specialStartSpeed = PrimitiveMobsConfigSpecial.getRocketCreeperSpecialStartSpeed();
         specialCurrentSpeed = specialStartSpeed;
         specialAcceleration = PrimitiveMobsConfigSpecial.getRocketCreeperSpecialAcceleration();
         specialExplodeDistance = PrimitiveMobsConfigSpecial.getRocketCreeperSpecialExplodeDistance();
-        specialHomingTicksStart = 0;
         specialHomingTicksMax = PrimitiveMobsConfigSpecial.getRocketCreeperSpecialMaxTicks();
+
+
+//If task absent
+        if(!TaskUtils.mobHasTask(this, EntityAICreeperSwellSpecial.class))
+        {
+//And task enabled in config
+            if (this.creeperSpecialEnabled)
+            {
+//Add the task
+                this.tasks.addTask(2, new EntityAICreeperSwellSpecial(this));
+            }
+        }
+//If task is here...
+        else
+        {
+//And task disabled in config
+            if (!this.creeperSpecialEnabled)
+            {
+//Remove the task
+                TaskUtils.mobRemoveTaskIfPresent(this, EntityAICreeperSwellSpecial.class);
+            }                
+        }
     }
 	
 	private static final DataParameter<Boolean> IS_ROCKET = EntityDataManager.<Boolean>createKey(EntityRocketCreeper.class, DataSerializers.BOOLEAN);
     private static final DataParameter<Boolean> IS_PREPARING = EntityDataManager.<Boolean>createKey(EntityRocketCreeper.class, DataSerializers.BOOLEAN);
+    private static final DataParameter<Boolean> IS_PREPARING_PAST_FIRST_TICK = EntityDataManager.<Boolean>createKey(EntityRocketCreeper.class, DataSerializers.BOOLEAN);
     private static final DataParameter<Boolean> IS_HOMING = EntityDataManager.<Boolean>createKey(EntityRocketCreeper.class, DataSerializers.BOOLEAN);
 	
     protected void initEntityAI()
@@ -107,18 +130,80 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
         this.targetTasks.addTask(2, new EntityAIHurtByTarget(this, false, new Class[0]));
     }
 
-    //Task only enabled if configured to be
+//Task only enabled if configured to be
     @Override public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
     {
         super.onInitialSpawn(difficulty, livingdata);
 
-        if(PrimitiveMobsConfigSpecial.getRocketCreeperSpecialEnabled())
+        return livingdata;
+    }
+
+    /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+//Data parameters
+        compound.setBoolean("Rocket", this.isRocket());
+        compound.setBoolean("Preparing", this.getCreeperPreparing());
+        compound.setBoolean("Homing", this.getCreeperHoming());
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        compound.setFloat("ExplosionRadius", this.explosionRadius);
+        compound.setBoolean("SpecialEnabled", this.creeperSpecialEnabled);
+        compound.setFloat("SpecialExplosionRadius", this.creeperSpecialExplosionRadius);
+        compound.setInteger("SpecialCooldown", this.creeperSpecialCooldown);
+        compound.setInteger("SpecialCooldownInterrupted", this.creeperSpecialCooldownInterrupted);
+        compound.setInteger("SpecialCooldownAttacked", this.creeperSpecialCooldownAttacked);
+        compound.setInteger("SpecialCooldownFrustrated", this.creeperSpecialCooldownFrustrated);
+        compound.setInteger("SpecialCooldownStunned", this.creeperSpecialCooldownStunned);
+        compound.setInteger("SpecialIgniteMax", this.creeperSpecialIgnitedTimeMax);
+        compound.setFloat("SpecialInterruptedDamage", this.creeperSpecialInterruptedDamage);
+        compound.setInteger("SpecialInterruptedMax", this.creeperSpecialInterruptedMax);
+        compound.setDouble("SpecialStartSpeed", this.specialStartSpeed);
+        compound.setDouble("SpecialCurrentSpeed", this.specialCurrentSpeed);
+        compound.setDouble("SpecialAcceleration", this.specialAcceleration);
+        compound.setDouble("SpecialExplodeDistance", this.specialExplodeDistance);
+        compound.setInteger("SpecialHomingMax", this.specialHomingTicksMax);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+        this.setRocket(compound.getBoolean("Rocket"));
+        if (compound.hasKey("Preparing")) { this.setCreeperPreparing(compound.getBoolean("Preparing")); }
+        if (compound.hasKey("Homing")) { this.setCreeperHoming(compound.getBoolean("Homing")); }
+
+        if (compound.hasKey("ExplosionRadius")) { this.explosionRadius = compound.getFloat("ExplosionRadius"); }
+        if (compound.hasKey("SpecialEnabled")) { this.creeperSpecialEnabled = compound.getBoolean("SpecialEnabled"); }
+        if (compound.hasKey("SpecialExplosionRadius")) { this.creeperSpecialExplosionRadius = compound.getFloat("SpecialExplosionRadius"); }
+        if (compound.hasKey("SpecialCooldown")) { this.creeperSpecialCooldown = compound.getInteger("SpecialCooldown"); }
+        if (compound.hasKey("SpecialCooldownInterrupted")) { this.creeperSpecialCooldownInterrupted = compound.getInteger("SpecialCooldownInterrupted"); }
+        if (compound.hasKey("SpecialCooldownAttacked")) { this.creeperSpecialCooldownAttacked = compound.getInteger("SpecialCooldownAttacked"); }
+        if (compound.hasKey("SpecialCooldownFrustrated")) { this.creeperSpecialCooldownFrustrated = compound.getInteger("SpecialCooldownFrustrated"); }
+        if (compound.hasKey("SpecialCooldownStunned")) { this.creeperSpecialCooldownStunned = compound.getInteger("SpecialCooldownStunned"); }
+        if (compound.hasKey("SpecialIgniteMax")) { this.creeperSpecialIgnitedTimeMax = compound.getInteger("SpecialIgniteMax"); }
+        if (compound.hasKey("SpecialInterruptedDamage")) { this.creeperSpecialInterruptedDamage = compound.getFloat("SpecialInterruptedDamage"); }
+        if (compound.hasKey("SpecialInterruptedMax")) { this.creeperSpecialInterruptedMax = compound.getInteger("SpecialInterruptedMax"); }
+        if (compound.hasKey("SpecialStartSpeed")) { this.specialStartSpeed = compound.getDouble("SpecialStartSpeed"); }
+        if (compound.hasKey("SpecialCurrentSpeed")) { this.specialCurrentSpeed = compound.getDouble("SpecialCurrentSpeed"); }
+        if (compound.hasKey("SpecialAcceleration")) { this.specialAcceleration = compound.getDouble("SpecialAcceleration"); }
+        if (compound.hasKey("SpecialExplodeDistance")) { this.specialExplodeDistance = compound.getDouble("SpecialExplodeDistance"); }
+        if (compound.hasKey("SpecialHomingMax")) { this.specialHomingTicksMax = compound.getInteger("SpecialHomingMax"); }
+
+
+//Remove task if present, and 
+        TaskUtils.mobRemoveTaskIfPresent(this, EntityAICreeperSwellSpecial.class);
+//Only reassign if enabled in NBT, NBT values can also override config ones
+        if (this.creeperSpecialEnabled) 
         {
             this.tasks.addTask(2, new EntityAICreeperSwellSpecial(this));
         }
-
-        return livingdata;
-    } 
+    }
     
     @Override
     protected void updateFallState(double y, boolean onGroundIn, IBlockState state, BlockPos pos)
@@ -168,6 +253,7 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
         super.entityInit();
         this.getDataManager().register(IS_ROCKET, Boolean.valueOf(false));
         this.getDataManager().register(IS_PREPARING, Boolean.valueOf(false));
+        this.getDataManager().register(IS_PREPARING_PAST_FIRST_TICK, Boolean.valueOf(false));
         this.getDataManager().register(IS_HOMING, Boolean.valueOf(false));
     }
     
@@ -265,7 +351,7 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
                 {
                     ++prepareTicks;
                     //On initial jump
-                    if(this.prepareStarted == false)
+                    if(!this.getCreeperPreparingIsPastFirstTick())
                     {
                         //Cancel all motion and gravity
                         this.motionX = 0.0D; 
@@ -275,7 +361,7 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
                         //Then jump extremely fast
                         this.motionY = 5.0D;
         		        this.playSound(SoundEvents.ENTITY_FIREWORK_LAUNCH, 3.0F, 0.5F);
-                        this.prepareStarted = true;
+                        this.setCreeperPreparingIsPastFirstTick(true);
                     }
                     //End if already significantly above target or too many ticks
                     else if
@@ -414,34 +500,6 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
         return ((Boolean)this.getDataManager().get(IS_ROCKET)).booleanValue();
     }
     
-    /**
-     * (abstract) Protected helper method to write subclass entity data to NBT.
-     */
-    public void writeEntityToNBT(NBTTagCompound compound)
-    {
-        super.writeEntityToNBT(compound);
-//Data parameters
-        compound.setBoolean("Rocket", this.isRocket());
-        compound.setBoolean("Preparing", this.getCreeperPreparing());
-        compound.setBoolean("Homing", this.getCreeperHoming());
-    }
-
-    /**
-     * (abstract) Protected helper method to read subclass entity data from NBT.
-     */
-    public void readEntityFromNBT(NBTTagCompound compound)
-    {
-        super.readEntityFromNBT(compound);
-        this.setRocket(compound.getBoolean("Rocket"));
-//Safety checks
-        if (compound.hasKey("Preparing")) {
-            this.setCreeperPreparing(compound.getBoolean("Preparing"));
-        }
-        if (compound.hasKey("Homing")) {
-            this.setCreeperHoming(compound.getBoolean("Homing"));
-        }
-    }
-    
     private void spawnLingeringCloud()
     {
         Collection<PotionEffect> collection = this.getActivePotionEffects();
@@ -486,7 +544,7 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
         this.setCreeperStateSpecial(-1);
         this.setCreeperPreparing(false);
         this.setNoGravity(false);
-        this.prepareStarted = false;
+        this.setCreeperPreparingIsPastFirstTick(false);
         this.prepareTicks = 0;
         this.specialCurrentSpeed = this.specialStartSpeed;
         this.setCreeperHoming(false);
@@ -505,6 +563,10 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
     {
         return ((Boolean)this.dataManager.get(IS_PREPARING)).booleanValue();
     }
+    public boolean getCreeperPreparingIsPastFirstTick()
+    {
+        return ((Boolean)this.dataManager.get(IS_PREPARING_PAST_FIRST_TICK)).booleanValue();
+    }
 
     public boolean getCreeperHoming()
     {
@@ -514,6 +576,11 @@ public class EntityRocketCreeper extends EntityPrimitiveCreeper implements IMult
     public void setCreeperPreparing(boolean preparing)
     {
         this.getDataManager().set(IS_PREPARING, Boolean.valueOf(preparing));
+    }
+
+    public void setCreeperPreparingIsPastFirstTick(boolean preparing_is_past_first_tick)
+    {
+        this.getDataManager().set(IS_PREPARING_PAST_FIRST_TICK, Boolean.valueOf(preparing_is_past_first_tick));
     }
 
     public void setCreeperHoming(boolean homing)

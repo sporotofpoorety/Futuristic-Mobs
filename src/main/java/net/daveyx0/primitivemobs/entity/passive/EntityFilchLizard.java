@@ -1,12 +1,10 @@
 package net.daveyx0.primitivemobs.entity.passive;
 
 import java.util.Arrays;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.Set;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
@@ -16,6 +14,9 @@ import net.daveyx0.multimob.entity.ai.EntityAIGrabItemFromFloor;
 import net.daveyx0.multimob.entity.ai.EntityAIStealFromPlayer;
 import net.daveyx0.multimob.util.EntityUtil;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
+import net.daveyx0.primitivemobs.core.PrimitiveMobsItemIdsToItemStacks;
+import net.daveyx0.primitivemobs.core.PrimitiveMobsRandomWeightedItem;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.minecraft.block.Block;
 import net.minecraft.entity.EntityCreature;
 import net.minecraft.entity.EnumCreatureType;
@@ -34,6 +35,9 @@ import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagString;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
@@ -59,7 +63,88 @@ public class EntityFilchLizard extends EntityCreature implements IMultiMobPassiv
 		this.inventoryHandsDropChances[0] = 0f;
 		this.inventoryHandsDropChances[1] = 0f;
 		this.setSize(0.6f, 0.5f);
+
+//Item steal Ids converted from array to list
+    	lootStealItems = new ArrayList<>(Arrays.asList(PrimitiveMobsConfigSpecial.getFilchStealLoot()));
+//Turn the list into an ItemStack list to provide to the tasks
+        lootStealItemStacks = PrimitiveMobsItemIdsToItemStacks.itemIdsToItemStacks(lootStealItems);    
+//Use for tasks
+        this.tasks.addTask(2, new EntityAIGrabItemFromFloor(this, 1.2D, Sets.newHashSet(lootStealItemStacks), true));
+        this.tasks.addTask(3, new EntityAIStealFromPlayer(this, 0.8D, Sets.newHashSet(lootStealItemStacks), true));
 	}
+
+	  /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+
+//Preserves field values including assigned by NBT
+
+//Loop through field list and append its values to NBT list
+        NBTTagList stealItems = new NBTTagList();
+        for(String id : this.lootStealItems)
+        {
+            stealItems.appendTag(new NBTTagString(id));
+        }
+        compound.setTag("StealItems", stealItems);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        if (compound.hasKey("StealItems")) 
+        {
+//Clear field lists
+            this.lootStealItems.clear();
+            this.lootStealItemStacks.clear();
+            
+//8 is for strings
+//Get NBT list of the item ids
+            NBTTagList items = compound.getTagList("StealItems", 8);
+//Iterate through it
+            for(int i = 0; i < items.tagCount(); i++)
+            {
+//Get the string tag values and rebuild field item id list
+                String itemId = items.getStringTagAt(i);
+                this.lootStealItems.add(itemId);
+            }
+//Then rebuild itemstack field list accordingly
+            this.lootStealItemStacks = PrimitiveMobsItemIdsToItemStacks.itemIdsToItemStacks(this.lootStealItems);    
+        }
+
+//Add task if absent
+        if(!TaskUtils.mobHasTask(this, EntityAIGrabItemFromFloor.class))
+        {
+            this.tasks.addTask(2, new EntityAIGrabItemFromFloor(this, 1.2D, Sets.newHashSet(lootStealItemStacks), true));
+        }
+//If task is here remove then reassign based on NBT (can be used to overwrite configs and make custom variants)
+        else
+        {
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAIGrabItemFromFloor.class);
+
+            this.tasks.addTask(2, new EntityAIGrabItemFromFloor(this, 1.2D, Sets.newHashSet(lootStealItemStacks), true));         
+        }
+
+//Add task if absent
+        if(!TaskUtils.mobHasTask(this, EntityAIStealFromPlayer.class))
+        {
+            this.tasks.addTask(3, new EntityAIStealFromPlayer(this, 0.8D, Sets.newHashSet(lootStealItemStacks), true));
+        }
+//If task is here remove then reassign based on NBT (can be used to overwrite configs and make custom variants)
+        else
+        {
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAIStealFromPlayer.class);
+
+            this.tasks.addTask(3, new EntityAIStealFromPlayer(this, 0.8D, Sets.newHashSet(lootStealItemStacks), true));
+        }
+    }
 	
     protected void initEntityAI()
     {
@@ -103,35 +188,36 @@ public class EntityFilchLizard extends EntityCreature implements IMultiMobPassiv
         super.updateAITasks();
     }
 
-	
     @Nullable
     public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, @Nullable IEntityLivingData livingdata)
     {
     	int chance = PrimitiveMobsConfigSpecial.getFilchLizardLootChance();
 
-//Only set the tasks if it passes chance
+//Only give it an item if chance passes
     	if(chance > 0 && (chance >= 100 || (rand.nextInt(100/chance) == 0)))
     	{
-//Item steal Ids converted from array to list
-    	    lootStealItems = new ArrayList<>(Arrays.asList(PrimitiveMobsConfigSpecial.getFilchStealLoot()));
-//Turn the list into an ItemStack list to provide to the tasks
-            lootStealItemStacks = itemIdsToItemStacks(lootStealItems);    
-
-//Do the same for the spawn items and weights
+//Spawn item ids converted from array to arraylist then to itemstacks
         	lootSpawnItems = new ArrayList<>(Arrays.asList(PrimitiveMobsConfigSpecial.getFilchSpawnLoot()));
-            lootSpawnItemStacks = itemIdsToItemStacks(lootSpawnItems);
+            lootSpawnItemStacks = PrimitiveMobsItemIdsToItemStacks.itemIdsToItemStacks(lootSpawnItems);
+//Item weights from array to arraylist
 //My first time using streams, still need to understand them better  
             lootSpawnItemWeights = new ArrayList<>(Arrays.stream(PrimitiveMobsConfigSpecial.getFilchSpawnLootWeights()).boxed().collect(Collectors.toList()));
 
-            this.tasks.addTask(2, new EntityAIGrabItemFromFloor(this, 1.2D, Sets.newHashSet(lootStealItemStacks), true));
-            this.tasks.addTask(3, new EntityAIStealFromPlayer(this, 0.8D, Sets.newHashSet(lootStealItemStacks), true));
-
-    		while(this.getHeldItemMainhand().isEmpty() && !getEntityWorld().isRemote)
+//If hand empty, server sided
+    		if(this.getHeldItemMainhand().isEmpty() && !getEntityWorld().isRemote)
     		{
-    			this.setItemStackToSlot(EntityEquipmentSlot.MAINHAND, getRandomWeightedItemInstance(this.lootSpawnItemStacks, this.lootSpawnItemWeights));
+//Get random weighted item based on its list
+                ItemStack heldItem = PrimitiveMobsRandomWeightedItem.getRandomWeightedItem(this.lootSpawnItemStacks, this.lootSpawnItemWeights);
+//Safety check
+                if(heldItem == null)
+                {
+                    heldItem = ItemStack.EMPTY;                
+                }
+//Make it hold item in main hand
+    			this.setItemStackToSlot(EntityEquipmentSlot.MAINHAND, heldItem);
     		}
     	}
-    		
+
         return super.onInitialSpawn(difficulty, livingdata);
     }
 
@@ -191,77 +277,5 @@ public class EntityFilchLizard extends EntityCreature implements IMultiMobPassiv
     public boolean isCreatureType(EnumCreatureType type, boolean forSpawnCount)
     {
     	return super.isCreatureType(type, forSpawnCount);
-    }
-
-//Converts a list of item Ids to a set of ItemStacks
-    public static ArrayList<ItemStack> itemIdsToItemStacks(ArrayList<String> itemIds)
-    {
-//ItemStack list to add stuff to
-        ArrayList<ItemStack> itemStacks = new ArrayList<>();
-
-//If item Ids not empty
-        if(!itemIds.isEmpty())
-        {
-//For each id
-            for(String id : itemIds)
-            {
-//Fetch Item object from Id then fetch default ItemStack
-                itemStacks.add(ForgeRegistries.ITEMS.getValue(new ResourceLocation(id)).getDefaultInstance());                
-            }
-            return itemStacks;
-        } 
-        else 
-        {
-            return null;
-        }
-    }
-
-//To generalize for later
-//Should take a list of ItemStacks and a list of weights then return a random one    
-    public static ItemStack getRandomWeightedItemInstance(ArrayList<ItemStack> items, ArrayList<Integer> weights)
-    {
-//Ranges for picking weighted items 
-        ArrayList<Integer> probabilityStops = new ArrayList<>();
-//Total current weight value
-        int probabilityStop = 0;
-
-//For each weight make a list of probability stops
-        for(int weight : weights)
-        {
-            probabilityStop += weight;
-            probabilityStops.add(probabilityStop);
-        }
-
-//Pick a random value
-        int randomPickedValue = ThreadLocalRandom.current().nextInt(probabilityStop) + 1;
-
-//Use to check picked value's index amongst the probability stops
-        int pickedValIndex = -1;
-
-//If probability stops list not empty
-        if(!probabilityStops.isEmpty())
-        {
-//For each probability stop
-            for(int i = 0; i < probabilityStops.size(); i++)
-            {
-//If picked value falls into current range
-                if(randomPickedValue <= probabilityStops.get(i))
-                {
-//Set picked value's index and stop search
-                    pickedValIndex = i;
-                    break;
-                }
-            }
-        }
-
-//Exception handling for no valid index
-        if(pickedValIndex >= 0)
-        {
-            return items.get(pickedValIndex);        
-        }
-        else
-        {
-            return ItemStack.EMPTY;
-        }
     }
 }

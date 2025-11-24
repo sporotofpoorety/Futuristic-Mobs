@@ -8,7 +8,7 @@ public class PrimitiveMobsConfigMobs {
 		enableGroveSprite, enableEnchantedBook, enableFilchLizard, enableBrainSlime,
 		enableRocketCreeper, enableFestiveCreeper, enableSupportCreeper, enableSkeletonWarrior,
 		enableBlazingJuggernaut, enableLilyLurker, enableSpiderFamily, enableTrollager,
-		enableLostMiner, enableMerchant, enableDodo, enableMimic,
+		enableLostMiner, enableDodo, enableMimic,
 		enableSheepman, enableGoblin, enableHarpy, enableFlameSpewer, enableVoidWatcher;
 	
 	public static void load(Configuration config) {
@@ -32,7 +32,6 @@ public class PrimitiveMobsConfigMobs {
 		enableSpiderFamily = config.get(category, "Enable Spider Family", true, "Enable/Disable the Spider Family").getBoolean();
 		enableTrollager = config.get(category, "Enable Troll", true, "Enable/Disable the Troll").getBoolean();
 		enableLostMiner = config.get(category, "Enable Lost Miner", true, "Enable/Disable the Lost Miner").getBoolean();
-		enableMerchant = config.get(category, "Enable Traveling Merchant", true, "Enable/Disable the Traveling Merchant").getBoolean();
 		enableDodo = config.get(category, "Enable Dodo", true, "Enable/Disable the Dodo").getBoolean();
 		enableMimic= config.get(category, "Enable Mimic", true, "Enable/Disable the Mimic").getBoolean();
 		enableSheepman = config.get(category, "Enable Sheepman", true, "Enable/Disable the Sheepman").getBoolean();

@@ -18,7 +18,6 @@ import net.daveyx0.primitivemobs.entity.monster.EntitySkeletonWarrior;
 import net.daveyx0.primitivemobs.entity.passive.EntityChameleon;
 import net.daveyx0.primitivemobs.entity.passive.EntityLostMiner;
 import net.daveyx0.primitivemobs.entity.passive.EntitySheepman;
-import net.daveyx0.primitivemobs.entity.passive.EntityTravelingMerchant;
 import net.daveyx0.primitivemobs.item.ItemCamouflageArmor;
 import net.daveyx0.primitivemobs.item.ItemGoblinMace;
 import net.daveyx0.primitivemobs.message.MessagePrimitiveJumping;
@@ -73,7 +72,7 @@ public class PrimitiveMobsEvents {
 @Mod.EventBusSubscriber(modid = PrimitiveMobsReference.MODID)
 public static class EntityEventHandler {
 
-	//Converts villagers spawning as the Miner or Merchant profession into a normal villager
+	//Converts villagers spawning as the Miner profession into a normal villager
 	@SubscribeEvent
 	public static void spawnEvent(EntityJoinWorldEvent event)
 	{
@@ -86,17 +85,6 @@ public static class EntityEventHandler {
 			{
 				replaceVillager(villager);
 			}
-		}
-		
-		if(event.getEntity() instanceof EntityVillager && !(event.getEntity() instanceof EntityTravelingMerchant))
-		{
-			EntityVillager villager = (EntityVillager)event.getEntity();
-			
-				if(villager != null && (villager.getProfession() == net.minecraftforge.fml.common.registry.VillagerRegistry.getId(PrimitiveMobsVillagerProfessions.MERCHANT_PROFESSION)
-						|| villager.getProfession() == net.minecraftforge.fml.common.registry.VillagerRegistry.getId(PrimitiveMobsVillagerProfessions.FAKE_MERCHANT_PROFESSION)))
-				{
-					replaceVillager(villager);
-				}
 		}
 		
 		if(event.getEntity() instanceof EntityVillager && !(event.getEntity() instanceof EntitySheepman))

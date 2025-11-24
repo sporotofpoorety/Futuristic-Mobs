@@ -17,7 +17,6 @@ entity.primitivemobs.mother_spider.name=Arana Madre
 entity.primitivemobs.baby_spider.name=Bebe Arana
 entity.primitivemobs.trollager.name=Trollager
 entity.primitivemobs.lost_miner.name=Minero Perdido
-entity.primitivemobs.traveling_merchant.name=Mercader Viajero
 entity.primitivemobs.dodo.name=Dodo
 entity.primitivemobs.mimic.name=Mimico
 entity.primitivemobs.goblin.name=Duende
@@ -53,7 +52,6 @@ item.primitivemobs:camouflage_boots.name=Botas de Camuflaje
 entity.Villager.primitivemobs.ore_miner=Minero de Vetas
 entity.Villager.primitivemobs.gem_miner=Minero de Gemas
 entity.Villager.primitivemobs.stone_miner=Minero de Piedra
-entity.Villager.primitivemobs.traveling_merchant=Mercader Viajero
 entity.Villager.primitivemobs.sheepman_scavenger=Hombre Oveja Carronero
 entity.Villager.primitivemobs.sheepman_alchemist=Hombre Oveja Alquimista
 entity.Villager.primitivemobs.sheepman_thief=Hombre Oveja Ladron
@@ -61,7 +59,6 @@ entity.Villager.primitivemobs.sheepman_thief=Hombre Oveja Ladron
 #JER Integration
 JER.catagory.primitivemobs.mimic_treasure=Botin del Tesoro del Mimico
 JER.catagory.primitivemobs.mimic_trap=Botin de Trampa Mimica
-entity.Villager.primitivemobs.fake_traveling_merchant=Mercader Viajero
 
 #Tamed
 death.tamed.sitting =%1$s se sento.

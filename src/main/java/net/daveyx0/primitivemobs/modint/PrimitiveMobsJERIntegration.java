@@ -18,7 +18,6 @@ import net.daveyx0.primitivemobs.entity.monster.EntityMotherSpider;
 import net.daveyx0.primitivemobs.entity.monster.EntityRocketCreeper;
 import net.daveyx0.primitivemobs.entity.monster.EntitySkeletonWarrior;
 import net.daveyx0.primitivemobs.entity.monster.EntitySupportCreeper;
-import net.daveyx0.primitivemobs.entity.monster.EntityTreasureSlime;
 import net.daveyx0.primitivemobs.entity.monster.EntityTrollager;
 import net.daveyx0.primitivemobs.entity.monster.EntityVoidEye;
 import net.daveyx0.primitivemobs.entity.passive.EntityDodo;
@@ -69,7 +68,6 @@ public class PrimitiveMobsJERIntegration extends JustEnoughResourcesIntegration 
 				
 				//Custom mob loot
 				jerAPI.getMobRegistry().register(new EntityHauntedTool(world), LightLevel.hostile, PrimitiveMobsLootTables.HAUNTEDTOOL_SPAWN);
-				jerAPI.getMobRegistry().register(new EntityTreasureSlime(world), PrimitiveMobsLootTables.TREASURESLIME_SPAWN);
 
 	}
 }

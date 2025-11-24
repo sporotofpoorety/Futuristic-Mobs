@@ -7,6 +7,7 @@ import net.daveyx0.multimob.entity.IMultiMobLava;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.daveyx0.primitivemobs.entity.ai.EntityAIFlameSpewAttack;
 import net.daveyx0.primitivemobs.entity.item.EntityFlameSpit;
 import net.minecraft.block.Block;
@@ -50,12 +51,15 @@ public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IM
     private static final DataParameter<Integer> ATTACK_TIME = EntityDataManager.<Integer>createKey(EntityFlameSpewer.class, DataSerializers.VARINT);
     private static final DataParameter<Float> ATTACK_SIGNAL = EntityDataManager.<Float>createKey(EntityFlameSpewer.class, DataSerializers.FLOAT);
 
-    protected double smallFireballAcceleration;
+    private int attackStepMax;
+    private int attackTimeMax;
+    private int inbetweenVulnerableTime;
+    protected int smallFireballPreparationMax;
+    protected int smallFireballInterval;
+    protected double smallFireballSpread;
     
 	public EntityFlameSpewer(World worldIn) {
 		super(worldIn);
-
-        this.smallFireballAcceleration = PrimitiveMobsConfigSpecial.getFlameSpewerSmallFireballAcceleration();
 
 		this.isImmuneToFire = true;
 		this.setOnFire(false);
@@ -64,6 +68,16 @@ public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IM
 		this.setAttackSignal(0);
 		this.setSize(1f, 1.25f);
 		this.setPathPriority(PathNodeType.LAVA, 10);
+
+        this.attackStepMax = PrimitiveMobsConfigSpecial.getFlameSpewerAttackStepMax();
+        this.attackTimeMax = PrimitiveMobsConfigSpecial.getFlameSpewerAttackTimeMax();
+        this.inbetweenVulnerableTime = PrimitiveMobsConfigSpecial.getFlameSpewerInbetweenVulnerableTime();
+        this.smallFireballPreparationMax = PrimitiveMobsConfigSpecial.getFlameSpewerSmallFireballPreparationMax();
+        this.smallFireballInterval = PrimitiveMobsConfigSpecial.getFlameSpewerSmallFireballInterval();
+        this.smallFireballSpread = PrimitiveMobsConfigSpecial.getFlameSpewerSmallFireballSpread();
+
+		this.tasks.addTask(4, new EntityAIFlameSpewAttack(this, this.attackStepMax, this.attackTimeMax, 
+        (this.attackTimeMax - this.inbetweenVulnerableTime), this.inbetweenVulnerableTime, this.smallFireballInterval, this.smallFireballSpread));
 	}
 
 	protected void initEntityAI()
@@ -76,13 +90,70 @@ public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IM
         this.targetTasks.addTask(2, new EntityAINearestAttackableTarget(this, EntityPlayer.class, true));
     }
 
-    @Override public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
+    @Override 
+    public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
     {
         super.onInitialSpawn(difficulty, livingdata);
 
-		this.tasks.addTask(4, new EntityAIFlameSpewAttack(this, this.smallFireballAcceleration));
-
         return livingdata;
+    }
+
+	  /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+
+        compound.setInteger("AttackTime", this.getAttackTime());
+        compound.setFloat("AttackSignal", this.getAttackSignal());
+        compound.setBoolean("onFire", this.isOnFire());
+        compound.setBoolean("inDanger", this.isInDanger());
+
+//Preserves field values including assigned by NBT
+        compound.setInteger("AttackStepMax", attackStepMax);
+        compound.setInteger("AttackTimeMax", attackTimeMax);
+        compound.setInteger("InbetweenVulnerableTime", inbetweenVulnerableTime);
+        compound.setInteger("SmallFireballPreparationMax", smallFireballPreparationMax);
+        compound.setInteger("SmallFireballInterval", smallFireballInterval);
+        compound.setDouble("SmallFireballSpread", smallFireballSpread);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+
+        this.setAttackTime(compound.getInteger("AttackTime"));
+        this.setAttackSignal(compound.getFloat("AttackSignal"));
+        this.setOnFire(compound.getBoolean("onFire"));
+        this.setInDanger(compound.getBoolean("inDanger"));
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        if (compound.hasKey("AttackStepMax")) { this.attackStepMax = compound.getInteger("AttackStepMax"); }
+        if (compound.hasKey("AttackTimeMax")) { this.attackTimeMax = compound.getInteger("AttackTimeMax"); }
+        if (compound.hasKey("InbetweenVulnerableTime")) { this.inbetweenVulnerableTime = compound.getInteger("InbetweenVulnerableTime"); }
+        if (compound.hasKey("SmallFireballPreparationMax")) { this.smallFireballPreparationMax = compound.getInteger("SmallFireballPreparationMax"); }
+        if (compound.hasKey("SmallFireballInterval")) { this.smallFireballInterval = compound.getInteger("SmallFireballInterval"); }
+        if (compound.hasKey("SmallFireballSpread")) { this.smallFireballSpread = compound.getDouble("SmallFireballSpread"); }
+
+//Add task if absent
+        if(!TaskUtils.mobHasTask(this, EntityAIFlameSpewAttack.class))
+        {
+		    this.tasks.addTask(4, new EntityAIFlameSpewAttack(this, this.attackStepMax, this.attackTimeMax, 
+            (this.attackTimeMax - this.inbetweenVulnerableTime), this.inbetweenVulnerableTime, this.smallFireballInterval, this.smallFireballSpread));
+        }
+//If task is here remove then reassign based on NBT (can be used to overwrite configs and make custom variants)
+        else
+        {
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAIFlameSpewAttack.class);
+
+		    this.tasks.addTask(4, new EntityAIFlameSpewAttack(this, this.attackStepMax, this.attackTimeMax, 
+            (this.attackTimeMax - this.inbetweenVulnerableTime), this.inbetweenVulnerableTime, this.smallFireballInterval, this.smallFireballSpread));       
+        }
+
     }
 	
     protected void applyEntityAttributes()
@@ -122,7 +193,8 @@ public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IM
      */
     public boolean isEntityInvulnerable(DamageSource source)
     {
-        return this.getAttackTime() < 10 || this.getAttackSignal() > 0;
+//      return this.getAttackTime() < 10 || this.getAttackSignal() > 0;
+        return this.isOnFire();
     }
 
     
@@ -219,31 +291,6 @@ public class EntityFlameSpewer extends EntityMob implements IRangedAttackMob, IM
             return entityitem;
         }
     }
-	
-	  /**
-     * (abstract) Protected helper method to write subclass entity data to NBT.
-     */
-    public void writeEntityToNBT(NBTTagCompound compound)
-    {
-        super.writeEntityToNBT(compound);
-        compound.setInteger("AttackTime", this.getAttackTime());
-        compound.setFloat("AttackSignal", this.getAttackSignal());
-        compound.setBoolean("onFire", this.isOnFire());
-        compound.setBoolean("inDanger", this.isInDanger());
-    }
-
-    /**
-     * (abstract) Protected helper method to read subclass entity data from NBT.
-     */
-    public void readEntityFromNBT(NBTTagCompound compound)
-    {
-        super.readEntityFromNBT(compound);
-        this.setAttackTime(compound.getInteger("AttackTime"));
-        this.setAttackSignal(compound.getFloat("AttackSignal"));
-        this.setOnFire(compound.getBoolean("onFire"));
-        this.setInDanger(compound.getBoolean("inDanger"));
-    }
-    
 
 	@Override
 	public void attackEntityWithRangedAttack(EntityLivingBase target, float distanceFactor) {

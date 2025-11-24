@@ -17,7 +17,6 @@ entity.primitivemobs.mother_spider.name=Mother Spider
 entity.primitivemobs.baby_spider.name=Baby Spider
 entity.primitivemobs.trollager.name=Trollager
 entity.primitivemobs.lost_miner.name=Lost Miner
-entity.primitivemobs.traveling_merchant.name=Traveling Merchant
 entity.primitivemobs.dodo.name=Dodo
 entity.primitivemobs.mimic.name=Mimic
 entity.primitivemobs.goblin.name=Goblin
@@ -52,7 +51,6 @@ item.primitivemobs:camouflage_boots.name=Camouflage Boots
 entity.Villager.primitivemobs.ore_miner=Ore Miner
 entity.Villager.primitivemobs.gem_miner=Gem Miner
 entity.Villager.primitivemobs.stone_miner=Stone Miner
-entity.Villager.primitivemobs.traveling_merchant=Traveling Merchant
 entity.Villager.primitivemobs.sheepman_scavenger=Sheepman Scavenger
 entity.Villager.primitivemobs.sheepman_alchemist=Sheepman Alchemist
 entity.Villager.primitivemobs.sheepman_thief=Sheepman Thief
@@ -60,7 +58,6 @@ entity.Villager.primitivemobs.sheepman_thief=Sheepman Thief
 #JER Integration
 JER.catagory.primitivemobs.mimic_treasure=Mimic Treasure Loot
 JER.catagory.primitivemobs.mimic_trap=Mimic Mob Trap Loot
-entity.Villager.primitivemobs.fake_traveling_merchant=Traveling Merchant
 
 #Tamed
 death.tamed.sitting =%1$s is now sitting.

@@ -31,21 +31,33 @@ import net.minecraft.world.World;
     {
         private final EntityFlameSpewer spewer;
         private float attackSignal;
-//How many attacks so far
+//How many shots so far, but also animation purposes i guess
         private int attackStep;
+        private int attackStepMax;
+//Decrementing timer for switching task phase
         private int attackTime;
+        private int attackTimeMax;
+        private int inbetweenVulnerableTicks;
+//Task phase determinant
         private boolean performingAttack;
         private boolean hasSeenPlayerThisAttack;
-
-        protected double smallFireballAcceleration;
+        protected int smallFireballPreparationMax;
+        protected int smallFireballInterval;
+        protected double smallFireballSpread;
 
 //Exclusive with movement and look tasks
-        public EntityAIFlameSpewAttack(EntityFlameSpewer spewerIn, double smallFireballAcceleration)
+        public EntityAIFlameSpewAttack(EntityFlameSpewer spewerIn, 
+        int attackStepMax, int attackTimeMax, int inbetweenVulnerableTicks, int smallFireballPreparationMax, int smallFireballInterval, double smallFireballSpread)
         {
             this.spewer = spewerIn;
             this.setMutexBits(3);
 
-            this.smallFireballAcceleration = smallFireballAcceleration;
+            this.attackStepMax = attackStepMax;
+            this.attackTimeMax = attackTimeMax;
+            this.inbetweenVulnerableTicks = inbetweenVulnerableTicks;
+            this.smallFireballPreparationMax = smallFireballPreparationMax;
+            this.smallFireballInterval = smallFireballInterval;
+            this.smallFireballSpread = smallFireballSpread;
         }
 
 //Executes if it has target
@@ -58,9 +70,11 @@ import net.minecraft.world.World;
         public void startExecuting()
         {
             this.attackSignal = 0;
-            this.attackStep = 10;
+//It's weird that it's implemented this way, but
+//the max attackStep actually represents the attack being FINISHED
+            this.attackStep = this.attackStepMax;
 //Delay until next attack
-            this.attackTime = 100;
+            this.attackTime = this.attackTimeMax;
             performingAttack = false;
             hasSeenPlayerThisAttack = false;
         }
@@ -78,11 +92,10 @@ import net.minecraft.world.World;
          */
         public void resetTask()
         {
-//I'm presuming the creator of the mod put this here twice by mistake, but eh don't fix what isn't broken
             this.spewer.setOnFire(false);
             this.attackSignal = 0;
-            this.attackStep = 10;
-            this.attackTime = 100;
+            this.attackStep = this.attackStepMax;
+            this.attackTime = this.attackTimeMax;
             spewer.setAttackTime(attackStep);
             spewer.setAttackSignal(attackSignal);
             this.spewer.setInDanger(false);
@@ -98,26 +111,32 @@ import net.minecraft.world.World;
             --this.attackTime;
             EntityLivingBase entitylivingbase = this.spewer.getAttackTarget();
 
-//If in attack conditions but not attacking yet
+//Inbetween-attack preparation and animation logic
             if(!this.performingAttack && this.spewer.isInLava() && this.spewer.canEntityBeSeen(entitylivingbase))
             {
-            	if(attackTime <= 50)
+//Will still be on fire from a previous attack here
+//If half or less cooldown left
+            	if(attackTime <= this.inbetweenVulnerableTicks)
             	{
+//Cancel prior on fire
             		this.spewer.setOnFire(false);
-            		hasSeenPlayerThisAttack = false;
+            		this.hasSeenPlayerThisAttack = false;
             	}
-            	
+//And then
                 if(!spewer.isOnFire())
                 {
                     if(this.spewer.canEntityBeSeen(entitylivingbase))
                     {
-                    	hasSeenPlayerThisAttack = true;
+//Set necessary flag for attack
+                    	this.hasSeenPlayerThisAttack = true;
                     }
-                    
-                    attackStep = (attackTime * 2) /10;
+//When not performing attack yet use attackStep for animation
+                    this.attackStep = (this.attackTime * (20 / this.attackTimeMax));
+
+//When attack time is very near does something related to animation
                     if(attackTime <= 3)
                     {
-                        attackSignal += 0.05f;
+                        this.attackSignal += 0.05f;
                     }
                 }
             }
@@ -129,12 +148,14 @@ import net.minecraft.world.World;
             {
 //In danger
             	this.spewer.setInDanger(true);
+/*
 //Melee attack every 20 ticks
                 if (this.attackTime <= 0)
                 {
                     this.attackTime = 20;
                     this.spewer.attackEntityAsMob(entitylivingbase);
                 }
+*/
             }
 
 //Attack logic is here
@@ -148,25 +169,30 @@ import net.minecraft.world.World;
 //Attack only executes after attackTime reaches 0
                 if (this.attackTime <= 0)
                 {
+//AttackStep of 1 represents pre-attack
                     ++this.attackStep;
                     attackSignal -= 0.05f;
-                    
+
+//Pre-attack, some ticks between setting on fire and actually attacking
                     if (this.attackStep == 1)
                     {
-                        this.attackTime = 30;
+                        this.attackTime = this.smallFireballPreparationMax;
                         this.spewer.setOnFire(true);
                         performingAttack = true;
                     }
-                    else if (this.attackStep <= 10)
+//Main shot delay logic
+                    else if (this.attackStep <= this.attackStepMax)
                     {
-                        this.attackTime = 3;
+                        this.attackTime = this.smallFireballInterval;
                         this.spewer.setOnFire(true);
                         performingAttack = true;
                     }
+//If max shots performed
                     else
                     {
-                        this.attackTime = 100;
-                        this.attackStep = 10;
+                        this.attackTime = this.attackTimeMax;
+                        this.attackStep = this.attackStepMax;
+//This is the ACTUAL state reset and takes it back to inbetween-attack logic
                         performingAttack = false;
                     }
 
@@ -177,13 +203,14 @@ import net.minecraft.world.World;
 
                         for (int i = 0; i < 1; ++i)
                         {
-                            EntityFlameSpit entitysmallfireball = new EntityFlameSpit(this.spewer.world, this.spewer, d1 + this.spewer.getRNG().nextGaussian() * this.smallFireballAcceleration * (double)f, d2 - this.spewer.getRNG().nextGaussian() * this.smallFireballAcceleration * (double)f, d3 + this.spewer.getRNG().nextGaussian() * this.smallFireballAcceleration * (double)f);
+                            EntityFlameSpit entitysmallfireball = new EntityFlameSpit(this.spewer.world, this.spewer, d1 + this.spewer.getRNG().nextGaussian() * this.smallFireballSpread * (double)f, d2 - this.spewer.getRNG().nextGaussian() * this.smallFireballSpread * (double)f, d3 + this.spewer.getRNG().nextGaussian() * this.smallFireballSpread * (double)f);
                             entitysmallfireball.posY = this.spewer.posY + (double)(this.spewer.height / 2.0F) -0.5F;
                             this.spewer.world.spawnEntity(entitysmallfireball);
                         }
                     }
                 }
             }
+//If not in range can approach target's position
             else if(this.spewer.isInLava()  && this.spewer.canEntityBeSeen(entitylivingbase))
             {
                 double d1 = entitylivingbase.posX - this.spewer.posX;

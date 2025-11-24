@@ -17,7 +17,6 @@ entity.primitivemobs.mother_spider.name=母蜘
 entity.primitivemobs.baby_spider.name=宝贝蜘
 entity.primitivemobs.trollager.name=巨魔石像
 entity.primitivemobs.lost_miner.name=矿工
-entity.primitivemobs.traveling_merchant.name=旅行商人
 entity.primitivemobs.dodo.name=渡渡鸟
 entity.primitivemobs.mimic.name=宝箱怪
 
@@ -41,12 +40,10 @@ item.primitivemobs:camouflage_boots.name=迷彩靴子
 entity.Villager.primitivemobs.ore_miner=矿石矿工
 entity.Villager.primitivemobs.gem_miner=宝石矿工
 entity.Villager.primitivemobs.stone_miner=采石工
-entity.Villager.primitivemobs.traveling_merchant=旅行商人
 
 #JER Integration
 JER.catagory.primitivemobs.mimic_treasure=宝箱怪宝物掉落
 JER.catagory.primitivemobs.mimic_trap=宝箱怪怪物陷阱掉落
-entity.Villager.primitivemobs.fake_traveling_merchant=旅行商人
 
 #Old
 

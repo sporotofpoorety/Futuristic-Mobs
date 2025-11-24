@@ -14,6 +14,7 @@ import net.daveyx0.multimob.message.MMMessageRegistry;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.daveyx0.primitivemobs.message.MessageTeleportEye;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
@@ -27,6 +28,7 @@ import net.minecraft.entity.ai.EntityMoveHelper.Action;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.MobEffects;
 import net.minecraft.init.SoundEvents;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.datasync.DataParameter;
 import net.minecraft.network.datasync.DataSerializers;
 import net.minecraft.network.datasync.EntityDataManager;
@@ -48,13 +50,19 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
     private static final DataParameter<Boolean> DOES_TELEPORT = EntityDataManager.<Boolean>createKey(EntityVoidEye.class, DataSerializers.BOOLEAN);
     private EntityLivingBase targetedEntity;
     protected int clientSideAttackTime;
+
     protected int attackDuration;
+    protected boolean ignoresWalls;
 
 	public EntityVoidEye(World worldIn) {
 		super(worldIn);
 		this.setSize(0.6f, 0.6f);
 		this.setTeleports(false);
+
         this.attackDuration = PrimitiveMobsConfigSpecial.getVoidEyeAttackDuration();
+        this.ignoresWalls = PrimitiveMobsConfigSpecial.getVoidEyeIgnoresWalls();
+
+        this.tasks.addTask(1, new EntityVoidEye.AIVoidEyeAttack(this, this.ignoresWalls));
 	}
 	
     protected void applyEntityAttributes()
@@ -74,14 +82,50 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
         this.tasks.addTask(4, new EntityAILookIdle(this));
         this.targetTasks.addTask(0, new EntityAISenseEntityNearestPlayer(this, 18));
     }
-    
+
+/*
     @Override public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
     {
         super.onInitialSpawn(difficulty, livingdata);
 
-        this.tasks.addTask(1, new EntityVoidEye.AIVoidEyeAttack(this, PrimitiveMobsConfigSpecial.getVoidEyeIgnoresWalls()));
-
         return livingdata;
+    }
+*/
+
+    /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        compound.setInteger("AttackDuration", this.attackDuration);
+        compound.setBoolean("IgnoresWalls", this.ignoresWalls);        
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+
+        if (compound.hasKey("AttackDuration")) { this.attackDuration = compound.getInteger("AttackDuration"); }
+        if (compound.hasKey("IgnoresWalls")) { this.ignoresWalls = compound.getBoolean("IgnoresWalls"); }
+
+//Add task if absent
+        if(!TaskUtils.mobHasTask(this, EntityVoidEye.AIVoidEyeAttack.class))
+        {
+            this.tasks.addTask(1, new EntityVoidEye.AIVoidEyeAttack(this, this.ignoresWalls));
+        }
+//If task is here remove then reassign based on NBT (can be used to overwrite configs and make custom variants)
+        else
+        {
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityVoidEye.AIVoidEyeAttack.class);
+
+            this.tasks.addTask(1, new EntityVoidEye.AIVoidEyeAttack(this, this.ignoresWalls));
+        }
     } 
 
     protected void entityInit()

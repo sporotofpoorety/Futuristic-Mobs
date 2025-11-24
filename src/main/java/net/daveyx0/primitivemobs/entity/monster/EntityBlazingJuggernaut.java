@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import net.daveyx0.multimob.entity.IMultiMob;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.minecraft.entity.EntityLiving;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.EnumCreatureType;
@@ -20,6 +21,7 @@ import net.minecraft.entity.IEntityLivingData;
 import net.minecraft.entity.monster.EntityMob;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.pathfinding.PathNodeType;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumParticleTypes;
@@ -39,9 +41,10 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
     private int heightOffsetUpdateTime;
 
     private int meleeCooldown;
+    private int chargeCooldown;
+
     private int meleeCooldownMax;
     private double meleeDistanceMax;
-    private int chargeCooldown;
     private int chargeCooldownMax;
     private double chargeDistanceMax;
     private boolean chargeDistanceIgnore;
@@ -59,14 +62,19 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
         this.experienceValue = 10;
 
         this.meleeCooldown = 0;
+        this.chargeCooldown = 0;
+
         this.meleeCooldownMax = PrimitiveMobsConfigSpecial.getBlazingJuggernautMeleeCooldownMax();
         this.meleeDistanceMax = PrimitiveMobsConfigSpecial.getBlazingJuggernautMeleeDistanceMax();
-        this.chargeCooldown = 0;
         this.chargeCooldownMax = PrimitiveMobsConfigSpecial.getBlazingJuggernautChargeCooldownMax();
         this.chargeDistanceMax = PrimitiveMobsConfigSpecial.getBlazingJuggernautChargeDistanceMax();
         this.chargeDistanceIgnore = PrimitiveMobsConfigSpecial.getBlazingJuggernautChargeDistanceIgnore();
         this.chargePropelFactor = PrimitiveMobsConfigSpecial.getBlazingJuggernautChargePropelFactor();
         this.chargeSpeedFactor = (float) PrimitiveMobsConfigSpecial.getBlazingJuggernautChargeSpeedFactor();
+
+        this.tasks.addTask(4, new EntityBlazingJuggernaut.EntityAIAerialChargeMovement(this, this.meleeCooldown, this.meleeCooldownMax,
+        (this.meleeDistanceMax * this.meleeDistanceMax), this.chargeCooldown, this.chargeCooldownMax, this.chargeDistanceMax, 
+        this.chargeDistanceIgnore, this.chargePropelFactor, this.chargeSpeedFactor));
     }
     
     protected void applyEntityAttributes()
@@ -92,15 +100,63 @@ public class EntityBlazingJuggernaut extends EntityMob implements IMultiMob {
         this.targetTasks.addTask(2, new EntityAINearestAttackableTarget(this, EntityPlayer.class, true));
     }
 
-    @Override public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
+    @Override 
+    public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData livingdata)
     {
         super.onInitialSpawn(difficulty, livingdata);
 
-        this.tasks.addTask(4, new EntityBlazingJuggernaut.EntityAIAerialChargeMovement(this, this.meleeCooldown, this.meleeCooldownMax,
-        this.meleeDistanceMax, this.chargeCooldown, this.chargeCooldownMax, this.chargeDistanceMax, 
-        this.chargeDistanceIgnore, this.chargePropelFactor, this.chargeSpeedFactor));
-
         return livingdata;
+    }
+
+ /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+
+//Preserves field values including assigned by NBT
+        compound.setInteger("MeleeCooldownMax", meleeCooldownMax);
+        compound.setDouble("MeleeDistanceMax", meleeDistanceMax);
+        compound.setInteger("ChargeCooldownMax", chargeCooldownMax);
+        compound.setDouble("ChargeDistanceMax", chargeDistanceMax);
+        compound.setBoolean("ChargeDistanceIgnore", chargeDistanceIgnore);
+        compound.setDouble("ChargePropelFactor", chargePropelFactor);
+        compound.setFloat("ChargeSpeedFactor", chargeSpeedFactor);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        if (compound.hasKey("MeleeCooldownMax")) { this.meleeCooldownMax = compound.getInteger("MeleeCooldownMax"); }
+        if (compound.hasKey("MeleeDistanceMax")) { this.meleeDistanceMax = compound.getDouble("MeleeDistanceMax"); }
+        if (compound.hasKey("ChargeCooldownMax")) { this.chargeCooldownMax = compound.getInteger("ChargeCooldownMax"); }
+        if (compound.hasKey("ChargeDistanceMax")) { this.chargeDistanceMax = compound.getDouble("ChargeDistanceMax"); }
+        if (compound.hasKey("ChargeDistanceIgnore")) { this.chargeDistanceIgnore = compound.getBoolean("ChargeDistanceIgnore"); } 
+        if (compound.hasKey("ChargePropelFactor")) { this.chargePropelFactor = compound.getDouble("ChargePropelFactor"); }
+        if (compound.hasKey("ChargeSpeedFactor")) { this.chargeSpeedFactor = compound.getFloat("ChargeSpeedFactor"); }
+
+//Add task if absent
+        if(!TaskUtils.mobHasTask(this, EntityAIAerialChargeMovement.class))
+        {
+            this.tasks.addTask(4, new EntityBlazingJuggernaut.EntityAIAerialChargeMovement(this, this.meleeCooldown, this.meleeCooldownMax,
+            (this.meleeDistanceMax * this.meleeDistanceMax), this.chargeCooldown, this.chargeCooldownMax, this.chargeDistanceMax, 
+            this.chargeDistanceIgnore, this.chargePropelFactor, this.chargeSpeedFactor));
+        }
+//If task is here remove then reassign based on NBT (can be used to overwrite configs and make custom variants)
+        else
+        {
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAIAerialChargeMovement.class);
+
+            this.tasks.addTask(4, new EntityBlazingJuggernaut.EntityAIAerialChargeMovement(this, this.meleeCooldown, this.meleeCooldownMax,
+            (this.meleeDistanceMax * this.meleeDistanceMax), this.chargeCooldown, this.chargeCooldownMax, this.chargeDistanceMax, 
+            this.chargeDistanceIgnore, this.chargePropelFactor, this.chargeSpeedFactor));        
+        }
     } 
 
     /**

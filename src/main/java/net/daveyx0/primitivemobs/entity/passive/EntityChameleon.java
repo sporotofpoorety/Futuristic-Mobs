@@ -11,6 +11,7 @@ import net.daveyx0.multimob.util.EntityUtil;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsItems;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsLootTables;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.daveyx0.primitivemobs.entity.ai.EntityAIBuffOwnerMultimob;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
@@ -34,6 +35,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.init.MobEffects;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.potion.Potion;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.ResourceLocation;
@@ -52,10 +54,19 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
 	private float NewG;
 	private float NewB;
 	private int colorSpeed = 4;
-    private int shedCooldown = PrimitiveMobsConfigSpecial.getChameleonShedCooldown() * 20;
 
 	private IBlockState currentState;
 	private int currentMultiplier;
+
+    protected int shedCooldown;
+
+    public double baseMaxHealthUntamed;
+    protected int shedCooldownMax;
+    protected boolean buffEnabled;
+    protected String buffId;
+    protected Potion buffObject;
+    protected int buffStrength;
+    protected double buffDistance;
 	
 	public EntityChameleon(World worldIn)
 	{
@@ -63,7 +74,103 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
 		this.setSize(0.7f, 0.5f);
 		this.setSkinRGB(new int[]{0,125,25});
 		this.stepHeight = 1.0f;
+
+        this.shedCooldown = 0;
+
+        this.baseMaxHealthUntamed = PrimitiveMobsConfigSpecial.getChameleonHealth();
+        this.shedCooldownMax = PrimitiveMobsConfigSpecial.getChameleonShedCooldown() * 20;
+        this.buffEnabled = PrimitiveMobsConfigSpecial.getChameleonBuffEnabled();
+        this.buffId = PrimitiveMobsConfigSpecial.getChameleonBuffID();
+        this.buffObject = ForgeRegistries.POTIONS.getValue(new ResourceLocation(this.buffId));
+        this.buffStrength = PrimitiveMobsConfigSpecial.getChameleonBuffStrength();
+        this.buffDistance = PrimitiveMobsConfigSpecial.getChameleonBuffDistance();
+
+//If buff invalid
+        if(this.buffObject == null)
+        {
+//Remove task
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAIBuffOwnerMultimob.class);
+        }
+        else
+        {
+//If task enabled in config
+            if (this.buffEnabled) 
+            {
+//Get Multimob tameable mob capability
+                ITameableEntity chameleonTameableCapability = this.getTameableCapability();
+
+//Add the task with appropriate arguments
+                this.tasks.addTask(2, new EntityAIBuffOwnerMultimob(this, 
+                this.buffObject, this.buffStrength, this.buffDistance, chameleonTameableCapability));
+            }
+//If task disabled
+            else
+            {
+//Remove the task
+                TaskUtils.mobRemoveTaskIfPresent(this, EntityAIBuffOwnerMultimob.class);             
+            }
+        } 
 	}
+
+	  /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+
+//Preserves field values including assigned by NBT
+        compound.setDouble("BaseMaxHealthUntamed", this.baseMaxHealthUntamed);
+        compound.setInteger("ShedCooldownMax", this.shedCooldownMax);
+        compound.setBoolean("BuffEnabled", this.buffEnabled);
+        compound.setString("BuffId", this.buffId);
+        compound.setInteger("BuffStrength", this.buffStrength);
+        compound.setDouble("BuffDistance", this.buffDistance);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        if (compound.hasKey("BaseMaxHealthUntamed")) { this.baseMaxHealthUntamed = compound.getDouble("BaseMaxHealthUntamed"); }
+        if (compound.hasKey("ShedCooldownMax")) { this.shedCooldownMax = compound.getInteger("ShedCooldownMax"); }
+        if (compound.hasKey("BuffEnabled")) { this.buffEnabled = compound.getBoolean("BuffEnabled"); }
+        if (compound.hasKey("BuffId")) { 
+            this.buffId = compound.getString("BuffId"); 
+            this.buffObject = ForgeRegistries.POTIONS.getValue(new ResourceLocation(this.buffId));
+        }
+        if (compound.hasKey("BuffStrength")) { this.buffStrength = compound.getInteger("BuffStrength"); }
+        if (compound.hasKey("BuffDistance")) { this.buffDistance = compound.getDouble("BuffDistance"); }
+
+
+//If buff invalid
+        if(this.buffObject == null)
+        {
+//Remove task
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAIBuffOwnerMultimob.class);
+        }
+        else
+        {
+//Remove task if present, and 
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAIBuffOwnerMultimob.class);
+//Only reassign if enabled in NBT, NBT values can also override config ones
+            if (this.buffEnabled) 
+            {
+//Get Multimob tameable mob capability
+                ITameableEntity chameleonTameableCapability = this.getTameableCapability();
+
+//Add the task with NBT arguments
+                this.tasks.addTask(2, new EntityAIBuffOwnerMultimob(this, 
+                this.buffObject, this.buffStrength, this.buffDistance, chameleonTameableCapability));
+            }
+        } 
+    }
 	
 	protected void initEntityAI()
     {
@@ -75,31 +182,13 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
         this.tasks.addTask(5, new EntityAIWander(this, 1.0D));
         this.tasks.addTask(6, new EntityAIWatchClosest(this, EntityPlayer.class, 6.0F));
         this.tasks.addTask(7, new EntityAILookIdle(this));
-
-
-//If buff enabled and buff valid add buff owner task
-        if(PrimitiveMobsConfigSpecial.getChameleonBuffEnabled()
-        && ForgeRegistries.POTIONS.getValue(new ResourceLocation(PrimitiveMobsConfigSpecial.getChameleonBuffID())) != null) 
-        {
-//Get Potion object of config buff
-            Potion chameleonBuff = ForgeRegistries.POTIONS.getValue(new ResourceLocation(PrimitiveMobsConfigSpecial.getChameleonBuffID()));
-//Get buff distance from config
-            double chameleonBuffDistance = PrimitiveMobsConfigSpecial.getChameleonBuffDistance();
-//Get Multimob tameable mob capability
-            ITameableEntity chameleonTameableCapability = this.getTameableCapability();
-
-//Add the arguments for the task
-            this.tasks.addTask(2, new EntityAIBuffOwnerMultimob(this, chameleonBuff, 
-            PrimitiveMobsConfigSpecial.getChameleonBuffStrength(),
-            chameleonBuffDistance, chameleonTameableCapability));
-        } 
     }
 	
     protected void applyEntityAttributes()
     {
         super.applyEntityAttributes();
         
-        this.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(PrimitiveMobsConfigSpecial.getChameleonHealth());
+        this.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(this.baseMaxHealthUntamed);
         this.getEntityAttribute(SharedMonsterAttributes.MOVEMENT_SPEED).setBaseValue(0.20000000298023224D);
     }
    
@@ -174,9 +263,9 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
 			}
 		}
 
-        if(shedCooldown <= 0) {
+        if(this.shedCooldown <= 0) {
             this.dropItem(PrimitiveMobsItems.CAMOUFLAGE_DYE, 1);            
-            shedCooldown = PrimitiveMobsConfigSpecial.getChameleonShedCooldown() * 20;
+            this.shedCooldown = this.shedCooldownMax;
         }
         
 		super.onUpdate();

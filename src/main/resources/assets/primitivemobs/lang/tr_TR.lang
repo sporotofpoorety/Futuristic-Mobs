@@ -17,7 +17,6 @@ entity.primitivemobs.mother_spider.name=Anne Örümcek
 entity.primitivemobs.baby_spider.name=Bebek Örümcek
 entity.primitivemobs.trollager.name=Troll Köylü
 entity.primitivemobs.lost_miner.name=Kayıp Madenci
-entity.primitivemobs.traveling_merchant.name=Seyyar Satıcı
 entity.primitivemobs.dodo.name=Dodo
 entity.primitivemobs.mimic.name=Mimic
 
@@ -40,12 +39,10 @@ item.primitivemobs:camouflage_boots.name=Kamuflaj Botları
 entity.Villager.primitivemobs.ore_miner=Cevher Madencisi
 entity.Villager.primitivemobs.gem_miner=Mücevher Madencisi
 entity.Villager.primitivemobs.stone_miner=Taş Madencisi
-entity.Villager.primitivemobs.traveling_merchant=Seyyar Satıcı
 
 #JER Integration
 JER.catagory.primitivemobs.mimic_treasure=Mimic Hazine Ganimeti
 JER.catagory.primitivemobs.mimic_trap=Mimic Tuzak Ganimeti
-entity.Villager.primitivemobs.fake_traveling_merchant=Seyyar Satıcı
 
 #Old
 

@@ -10,6 +10,7 @@ import net.daveyx0.multimob.message.MessageMMParticle;
 import net.daveyx0.multimob.util.NBTUtil;
 import net.daveyx0.primitivemobs.config.PrimitiveMobsConfigSpecial;
 import net.daveyx0.primitivemobs.core.PrimitiveMobsSoundEvents;
+import net.daveyx0.primitivemobs.core.TaskUtils;
 import net.daveyx0.primitivemobs.entity.IAnimatedMob;
 import net.daveyx0.primitivemobs.entity.ai.EntityAITrollagerAttacks;
 import net.daveyx0.primitivemobs.entity.item.EntityThrownBlock;
@@ -54,21 +55,37 @@ import net.minecraft.world.World;
 
 public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMob {
 
-	 private static final DataParameter<Integer> ANIMATION_STATE = EntityDataManager.<Integer>createKey(EntityTrollager.class, DataSerializers.VARINT);
-	 private static final DataParameter<BlockPos> CURRENT_THROWN_BLOCK = EntityDataManager.<BlockPos>createKey(EntityTrollager.class, DataSerializers.BLOCK_POS);
-	 private static final DataParameter<Boolean> IS_STONE = EntityDataManager.<Boolean>createKey(EntityTrollager.class, DataSerializers.BOOLEAN);
+    private static final DataParameter<Integer> ANIMATION_STATE = EntityDataManager.<Integer>createKey(EntityTrollager.class, DataSerializers.VARINT);
+    private static final DataParameter<BlockPos> CURRENT_THROWN_BLOCK = EntityDataManager.<BlockPos>createKey(EntityTrollager.class, DataSerializers.BLOCK_POS);
+    private static final DataParameter<Boolean> IS_STONE = EntityDataManager.<Boolean>createKey(EntityTrollager.class, DataSerializers.BOOLEAN);
 
-	 private int previousState = 0;
-	 private float animVar = 0;
-	 private float previousYawStone = -2;
-	 private float previousPitchStone = -2;
-	 private float previousYawHeadStone = -2;
-	 public boolean isBeingSupported;
+    private int previousState = 0;
+    private float animVar = 0;
+    private float previousYawStone = -2;
+    private float previousPitchStone = -2;
+    private float previousYawHeadStone = -2;
+    public boolean isBeingSupported;
+
+    protected float meleeDistance;
+    protected float smashDistance;
+    protected boolean explosionDestructive;
+    protected double explosionPowerDestructive;
+    protected double explosionPowerNondestructive;
+    protected boolean turnsToStone;
 	    
 	public EntityTrollager(World worldIn) {
 		super(worldIn);
 		this.setSize(2.25f, 3f);
 		isBeingSupported = false;
+
+        meleeDistance = (float) PrimitiveMobsConfigSpecial.getTrollMeleeDistance();
+        smashDistance = (float) PrimitiveMobsConfigSpecial.getTrollSmashDistance();
+        explosionDestructive = PrimitiveMobsConfigSpecial.getTrollDestruction();
+        explosionPowerDestructive = PrimitiveMobsConfigSpecial.getTrollDestructionPower();
+        explosionPowerNondestructive = PrimitiveMobsConfigSpecial.getTrollNondestructionPower();
+        turnsToStone = PrimitiveMobsConfigSpecial.getTrollTurnsToStone();
+
+        this.tasks.addTask(3, new EntityAITrollagerAttacks(this, 1.25D, this.meleeDistance, this.smashDistance));
 	}
 	
 
@@ -83,18 +100,15 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
 	
 	protected void initEntityAI()
     {
-		int prio = 0;
-        this.tasks.addTask(++prio, new EntityAISwimming(this));
-        this.tasks.addTask(++prio, new EntityAIMoveTowardsRestriction(this, 1.0D));
-        this.tasks.addTask(++prio, new EntityAITrollagerAttacks(this, 1.25D,
-            (float) PrimitiveMobsConfigSpecial.getTrollMeleeDistance(), (float) PrimitiveMobsConfigSpecial.getTrollSmashDistance()));
-        this.tasks.addTask(++prio, new EntityAIWander(this, 1.0D));
-        this.tasks.addTask(++prio, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));
-        this.tasks.addTask(++prio, new EntityAILookIdle(this));
-        int attackPrio = 1;
-        this.targetTasks.addTask(++attackPrio, new EntityAIHurtByTarget(this, false));
-        this.targetTasks.addTask(++attackPrio, new EntityAISenseEntityNearestPlayer(this, 40));
-        this.targetTasks.addTask(++attackPrio, new EntityAINearestAttackableTarget(this, EntityIronGolem.class, true));
+        this.tasks.addTask(1, new EntityAISwimming(this));
+        this.tasks.addTask(2, new EntityAIMoveTowardsRestriction(this, 1.0D));
+        this.tasks.addTask(4, new EntityAIWander(this, 1.0D));
+        this.tasks.addTask(5, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));
+        this.tasks.addTask(6, new EntityAILookIdle(this));
+
+        this.targetTasks.addTask(2, new EntityAIHurtByTarget(this, false));
+        this.targetTasks.addTask(3, new EntityAISenseEntityNearestPlayer(this, 40));
+        this.targetTasks.addTask(4, new EntityAINearestAttackableTarget(this, EntityIronGolem.class, true));
     }
 	
 	/**
@@ -118,6 +132,56 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
         return livingdata;
     }
     
+    /**
+     * (abstract) Protected helper method to write subclass entity data to NBT.
+     */
+    public void writeEntityToNBT(NBTTagCompound compound)
+    {
+        super.writeEntityToNBT(compound);
+        
+        NBTUtil.setBlockPosToNBT(this.getThrownBlock(), "ThrownBlock", compound);
+        compound.setBoolean("Stone", this.isStone());
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        compound.setFloat("MeleeDistance", this.meleeDistance);
+        compound.setFloat("SmashDistance", this.smashDistance);
+        compound.setBoolean("ExplosionDestructive", this.explosionDestructive);
+        compound.setDouble("ExplosionPowerDestructive", this.explosionPowerDestructive);
+        compound.setDouble("ExplosionPowerNondestructive", this.explosionPowerNondestructive);
+        compound.setBoolean("TurnsToStone", this.turnsToStone);
+    }
+
+    /**
+     * (abstract) Protected helper method to read subclass entity data from NBT.
+     */
+    public void readEntityFromNBT(NBTTagCompound compound)
+    {
+        super.readEntityFromNBT(compound);
+
+        this.setThrownBlock(NBTUtil.getBlockPosFromNBT("ThrownBlock", compound));
+        this.setStone(compound.getBoolean("Stone"));
+
+//Avoids overwriting the fields with empty NBT tag values on initial spawn
+        if (compound.hasKey("MeleeDistance")) { this.meleeDistance = compound.getFloat("MeleeDistance"); }
+        if (compound.hasKey("SmashDistance")) { this.smashDistance = compound.getFloat("SmashDistance"); }
+        if (compound.hasKey("ExplosionDestructive")) { this.explosionDestructive = compound.getBoolean("ExplosionDestructive"); }
+        if (compound.hasKey("ExplosionPowerDestructive")) { this.explosionPowerDestructive = compound.getDouble("ExplosionPowerDestructive"); }
+        if (compound.hasKey("ExplosionPowerNondestructive")) { this.explosionPowerNondestructive = compound.getDouble("ExplosionPowerNondestructive"); }
+        if (compound.hasKey("TurnsToStone")) { this.turnsToStone = compound.getBoolean("TurnsToStone"); }
+
+//Add task if absent
+        if(!TaskUtils.mobHasTask(this, EntityAITrollagerAttacks.class))
+        {
+            this.tasks.addTask(3, new EntityAITrollagerAttacks(this, 1.25D, this.meleeDistance, this.smashDistance));
+        }
+//If task is here remove then reassign based on NBT (can be used to overwrite configs and make custom variants)
+        else
+        {
+            TaskUtils.mobRemoveTaskIfPresent(this, EntityAITrollagerAttacks.class);
+
+            this.tasks.addTask(3, new EntityAITrollagerAttacks(this, 1.25D, this.meleeDistance, this.smashDistance));
+        }
+    }
 
     /**
      * Returns the Y offset from the entity's position for any entity riding this one.
@@ -305,7 +369,7 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
                 }
                 else
                 {
-                    if(PrimitiveMobsConfigSpecial.getTrollTurnsToStone()) 
+                    if(this.turnsToStone) 
                     {
                 	    this.setStone(true);
                     }
@@ -474,13 +538,15 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
 		}
 		case 1:
 		{
+//Explosion goes where user is facing
 			double distanceX = (this.getLookHelper().getLookPosX() - this.posX);
 			double distanceZ = (this.getLookHelper().getLookPosZ() - this.posZ);
 		    double length = Math.sqrt((distanceX*distanceX) +(distanceZ*distanceZ) );
-		    if (length != 0) {
+		    if (length != 0) 
+            {
 		    	distanceX = distanceX/length;
 		    	distanceZ = distanceZ/length;
-		      }
+		    }
 
 //Adjust to reach target more easily
 		    double addedHeight = 0D;
@@ -495,14 +561,18 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
 			double explosionX = this.posX + (distanceX * 2D);
 			double explosionZ = this.posZ + (distanceZ * 2D);
 //Configure explosion power and adjust up to prevent digging down
-			double explosionY = PrimitiveMobsConfigSpecial.getTrollDestructionPower() > 3F ? this.posY + this.getEyeHeight() + addedHeight + 1.5F + (float) (PrimitiveMobsConfigSpecial.getTrollDestructionPower() * 0.6) : this.posY + this.getEyeHeight() + addedHeight + 1.5F;
+			double explosionY = this.explosionPowerDestructive > 3F ? this.posY + this.getEyeHeight() + addedHeight + 1.5F + (float) (this.explosionPowerDestructive * 0.6) : this.posY + this.getEyeHeight() + addedHeight + 1.5F;
 			boolean flag = true;
-			if(!this.getEntityWorld().getGameRules().getBoolean("mobGriefing") || !PrimitiveMobsConfigSpecial.getTrollDestruction())
+			if(!this.getEntityWorld().getGameRules().getBoolean("mobGriefing") || !this.explosionDestructive)
 			{
 				flag = false;
 			}
 //By calling on world should hopefully sync with client now
-			this.world.newExplosion(this, explosionX, explosionY, explosionZ, (float) PrimitiveMobsConfigSpecial.getTrollDestructionPower(), false, flag);
+			this.world.newExplosion(this, explosionX, explosionY, explosionZ, (float) this.explosionPowerDestructive, false, flag);
+            if(this.explosionPowerNondestructive > 0)
+            {
+                this.world.newExplosion(this, explosionX, explosionY, explosionZ, (float) this.explosionPowerNondestructive, false, false);
+            }
 			
 			//MMMessageRegistry.getNetwork().sendToAll(new MessageMMParticle(EnumParticleTypes.BLOCK_CRACK.getParticleID(), 50, (float)explosionX, (float)explosionY, (float)explosionZ, 0D,0D,0D, blockId));
 
@@ -556,28 +626,6 @@ public class EntityTrollager extends EntityMob implements IAnimatedMob, IMultiMo
     {
     	BlockPos pos = (BlockPos)this.getDataManager().get(CURRENT_THROWN_BLOCK);
     	return pos != null ? pos : new BlockPos(0,0,0);
-    }
-	
-    /**
-     * (abstract) Protected helper method to write subclass entity data to NBT.
-     */
-    public void writeEntityToNBT(NBTTagCompound compound)
-    {
-        super.writeEntityToNBT(compound);
-        
-        NBTUtil.setBlockPosToNBT(this.getThrownBlock(), "ThrownBlock", compound);
-        compound.setBoolean("Stone", this.isStone());
-    }
-
-    /**
-     * (abstract) Protected helper method to read subclass entity data from NBT.
-     */
-    public void readEntityFromNBT(NBTTagCompound compound)
-    {
-        super.readEntityFromNBT(compound);
-
-        this.setThrownBlock(NBTUtil.getBlockPosFromNBT("ThrownBlock", compound));
-        this.setStone(compound.getBoolean("Stone"));
     }
     
 	public int getPreviousAnimationState()

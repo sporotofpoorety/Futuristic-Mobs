@@ -17,7 +17,6 @@ entity.primitivemobs.mother_spider.name=Мама-паук
 entity.primitivemobs.baby_spider.name=Малыш-паук
 entity.primitivemobs.trollager.name=Тролль-житель
 entity.primitivemobs.lost_miner.name=Потерявшийся шахтер
-entity.primitivemobs.traveling_merchant.name=Странствующий торговец
 entity.primitivemobs.dodo.name=Дронт
 entity.primitivemobs.mimic.name=Подражатель
 entity.primitivemobs.goblin.name=Гоблин
@@ -52,7 +51,6 @@ item.primitivemobs:camouflage_boots.name=Камуфляжные ботинки
 entity.Villager.primitivemobs.ore_miner=Рудокоп
 entity.Villager.primitivemobs.gem_miner=Добытчик драгоценных камней
 entity.Villager.primitivemobs.stone_miner=Добытчик камня
-entity.Villager.primitivemobs.traveling_merchant=Странствующий торговец
 entity.Villager.primitivemobs.sheepman_scavenger=Овцечеловек-мусорщик
 entity.Villager.primitivemobs.sheepman_alchemist=Овцечеловек-алхимик
 entity.Villager.primitivemobs.sheepman_thief=Овцечеловек-вор
@@ -60,7 +58,6 @@ entity.Villager.primitivemobs.sheepman_thief=Овцечеловек-вор
 #JER Integration
 JER.catagory.primitivemobs.mimic_treasure=Добыча c подражателя
 JER.catagory.primitivemobs.mimic_trap=Добыча ловушки подражателя
-entity.Villager.primitivemobs.fake_traveling_merchant=Странствующий торговец
 
 #Tamed (Doesn't seem working) 
 death.tamed.sitting=%1$s теперь сидит.
