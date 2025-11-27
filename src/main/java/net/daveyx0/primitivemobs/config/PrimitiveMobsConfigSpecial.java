@@ -19,8 +19,6 @@ public class PrimitiveMobsConfigSpecial {
     public static boolean camouflageVictimDeny;
     public static double camouflageOverrideValue;
     public static double camouflageDivisorValue;
-    public static double chameleonHealth;
-    public static double chameleonHealthTamed;
     public static boolean chameleonBuffEnabled; 
     public static String chameleonBuffID;
     public static int chameleonBuffStrength;
@@ -143,8 +141,6 @@ public class PrimitiveMobsConfigSpecial {
         camouflageVictimDeny = config.get(category1, "Camouflage armor fails on prior victim", true, "Whether the camouflage armor fails if a mob remembers being attacked by you").getBoolean();
         camouflageOverrideValue = config.get(category1, "Camouflage armor sight override", 6, "How much the camouflage armor should override mob sight range by").getDouble();
         camouflageDivisorValue = config.get(category1, "Camouflage armor sight division", 8, "How much the camouflage armor should divide mob sight range by").getDouble();
-        chameleonHealth = config.get(category1, "Chameleon nontamed health", 20.0, "Base health of an untamed chameleon").getDouble(); //And then pass to type parser
-        chameleonHealthTamed = config.get(category1, "Chameleon health tamed", 100.0, "Base health of a tamed chameleon").getDouble();
         chameleonBuffEnabled = config.get(category1, "Chameleon tamed buff enabled", true, "Whether tamed chameleons should buff their owners").getBoolean();
         chameleonBuffID = config.get(category1, "Chameleon tamed buff ID", "minecraft:invisibility", "ID of a tamed chameleon's buff").getString();
         chameleonBuffStrength = config.get(category1, "Chameleon tamed buff strength (from 0)", 0, "Potency of buff applied by a tamed chameleon (starts from 0)").getInt();
@@ -314,17 +310,7 @@ public class PrimitiveMobsConfigSpecial {
     {
         return camouflageDivisorValue;
     }
-
-    public static double getChameleonHealth() 
-    {
-        return chameleonHealth;
-    }
-
-    public static double getChameleonHealthTamed()
-    {
-        return chameleonHealthTamed;
-    }
-    
+   
     public static boolean getChameleonBuffEnabled() 
     {
         return chameleonBuffEnabled;

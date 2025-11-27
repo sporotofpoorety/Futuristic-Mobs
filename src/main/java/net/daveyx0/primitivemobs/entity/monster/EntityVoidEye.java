@@ -209,6 +209,11 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
         
         if(!this.world.isRemote)
         {
+            if(this.world.getDifficulty() == EnumDifficulty.PEACEFUL)
+            {
+                this.setDead();
+                return;
+            }
             if(this.getTargetedEntity() != null && this.canEntityBeSeen(this.getTargetedEntity()))
             {
             	this.setCanSeeTarget(true);
@@ -502,9 +507,13 @@ public class EntityVoidEye extends EntityMMFlyingCreature implements IMultiMob {
         return super.getCanSpawnHere();
     }
     
+    @Override
     public boolean isCreatureType(EnumCreatureType type, boolean forSpawnCount)
     {
-    	if(type == EnumCreatureType.MONSTER){return false;}
+    	if(type == EnumCreatureType.MONSTER)
+        {
+            return true;
+        }
     	return super.isCreatureType(type, forSpawnCount);
     }
 

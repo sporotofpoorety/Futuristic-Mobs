@@ -60,7 +60,6 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
 
     protected int shedCooldown;
 
-    public double baseMaxHealthUntamed;
     protected int shedCooldownMax;
     protected boolean buffEnabled;
     protected String buffId;
@@ -75,9 +74,8 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
 		this.setSkinRGB(new int[]{0,125,25});
 		this.stepHeight = 1.0f;
 
-        this.shedCooldown = 0;
+        this.shedCooldown = 20;
 
-        this.baseMaxHealthUntamed = PrimitiveMobsConfigSpecial.getChameleonHealth();
         this.shedCooldownMax = PrimitiveMobsConfigSpecial.getChameleonShedCooldown() * 20;
         this.buffEnabled = PrimitiveMobsConfigSpecial.getChameleonBuffEnabled();
         this.buffId = PrimitiveMobsConfigSpecial.getChameleonBuffID();
@@ -121,7 +119,6 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
         super.writeEntityToNBT(compound);
 
 //Preserves field values including assigned by NBT
-        compound.setDouble("BaseMaxHealthUntamed", this.baseMaxHealthUntamed);
         compound.setInteger("ShedCooldownMax", this.shedCooldownMax);
         compound.setBoolean("BuffEnabled", this.buffEnabled);
         compound.setString("BuffId", this.buffId);
@@ -138,7 +135,6 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
         super.readEntityFromNBT(compound);
 
 //Avoids overwriting the fields with empty NBT tag values on initial spawn
-        if (compound.hasKey("BaseMaxHealthUntamed")) { this.baseMaxHealthUntamed = compound.getDouble("BaseMaxHealthUntamed"); }
         if (compound.hasKey("ShedCooldownMax")) { this.shedCooldownMax = compound.getInteger("ShedCooldownMax"); }
         if (compound.hasKey("BuffEnabled")) { this.buffEnabled = compound.getBoolean("BuffEnabled"); }
         if (compound.hasKey("BuffId")) { 
@@ -188,7 +184,7 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
     {
         super.applyEntityAttributes();
         
-        this.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(this.baseMaxHealthUntamed);
+        this.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(20.0D);
         this.getEntityAttribute(SharedMonsterAttributes.MOVEMENT_SPEED).setBaseValue(0.20000000298023224D);
     }
    
@@ -216,7 +212,6 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
 	@Override
 	public void onUpdate() 
 	{
-		
 		if (this.isInWater() && !collidedHorizontally) {
 			motionY = 0.02D;
 		}
@@ -263,7 +258,7 @@ public class EntityChameleon extends EntityAnimal implements IMultiMobPassive
 			}
 		}
 
-        if(this.shedCooldown <= 0) {
+        if(!this.getEntityWorld().isRemote && --this.shedCooldown <= 0) {
             this.dropItem(PrimitiveMobsItems.CAMOUFLAGE_DYE, 1);            
             this.shedCooldown = this.shedCooldownMax;
         }
